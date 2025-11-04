@@ -6,7 +6,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AuthContext = createContext();
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+};
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -14,26 +20,50 @@ export const AuthProvider = ({ children }) => {
     const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                const userDoc = await getDoc(doc(db, 'users', user.uid));
-                setUser({
-                    uid: user.uid,
-                    email: user.email,
-                    displayName: userDoc.data()?.displayName || user.email,
-                    ...userDoc.data()
-                });
+        let mounted = true;
 
-                const onboardingStatus = await AsyncStorage.getItem(`onboarding_${user.uid}`);
-                setHasCompletedOnboarding(onboardingStatus === 'completed');
-            } else {
-                setUser(null);
-                setHasCompletedOnboarding(false);
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (!mounted) return;
+
+            try {
+                if (firebaseUser) {
+                    const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+                    const userData = userDoc.exists() ? userDoc.data() : {};
+
+                    if (mounted) {
+                        setUser({
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            displayName: userData.displayName || firebaseUser.email,
+                            ...userData
+                        });
+
+                        const onboardingStatus = await AsyncStorage.getItem(`onboarding_${firebaseUser.uid}`);
+                        setHasCompletedOnboarding(onboardingStatus === 'completed');
+                    }
+                } else {
+                    if (mounted) {
+                        setUser(null);
+                        setHasCompletedOnboarding(false);
+                    }
+                }
+            } catch (error) {
+                console.error('Auth state change error:', error);
+                if (mounted) {
+                    setUser(null);
+                    setHasCompletedOnboarding(false);
+                }
+            } finally {
+                if (mounted) {
+                    setIsLoading(false);
+                }
             }
-            setIsLoading(false);
         });
 
-        return unsubscribe;
+        return () => {
+            mounted = false;
+            unsubscribe();
+        };
     }, []);
 
     const signup = async (email, password, displayName) => {

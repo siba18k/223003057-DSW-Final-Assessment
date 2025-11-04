@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import OnboardingScreen from './screens/OnboardingScreen';
 import SignInScreen from './screens/SignInScreen';
@@ -15,6 +16,7 @@ import BookingScreen from './screens/BookingScreen';
 import BookingSuccessScreen from './screens/BookingSuccessScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import ReviewsScreen from './screens/ReviewsScreen';
+import './config/firebase';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -63,7 +65,11 @@ const AppContent = () => {
     const { user, isLoading, hasCompletedOnboarding } = useAuth();
 
     if (isLoading) {
-        return null;
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#007AFF" />
+            </View>
+        );
     }
 
     if (!user) {
@@ -81,7 +87,25 @@ const AppContent = () => {
     return <AppStack />;
 };
 
-export default function App() {
+const App = () => {
+    const [isReady, setIsReady] = useState(false);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setIsReady(true);
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, []);
+
+    if (!isReady) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#007AFF" />
+            </View>
+        );
+    }
+
     return (
         <AuthProvider>
             <NavigationContainer>
@@ -90,4 +114,15 @@ export default function App() {
             </NavigationContainer>
         </AuthProvider>
     );
-}
+};
+
+const styles = StyleSheet.create({
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+    },
+});
+
+export default App;
