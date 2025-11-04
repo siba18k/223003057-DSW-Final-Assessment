@@ -1,261 +1,155 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Modal, TextInput } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../context/AuthContext';
 
-const HotelDetailScreen = ({ navigation, route }) => {
+const { width } = Dimensions.get('window');
+
+const HotelDetailScreen = ({ route, navigation }) => {
     const { hotel } = route.params;
-    const { user } = useAuth();
-    const [reviews, setReviews] = useState([]);
-    const [userReview, setUserReview] = useState(null);
-    const [showReviewModal, setShowReviewModal] = useState(false);
-    const [reviewText, setReviewText] = useState('');
-    const [reviewRating, setReviewRating] = useState(5);
-    const [weather, setWeather] = useState(null);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-    const sampleReviews = [
-        {
-            id: 1,
-            userName: 'John Smith',
-            rating: 5,
-            text: 'Amazing hotel with excellent service!',
-            date: '2024-10-15'
-        },
-        {
-            id: 2,
-            userName: 'Sarah Johnson',
-            rating: 4,
-            text: 'Great location and comfortable rooms.',
-            date: '2024-10-10'
-        }
+    const hotelImages = [
+        hotel.image,
+        'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=400',
+        'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?w=400',
+        'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400'
     ];
 
     useEffect(() => {
-        setReviews(sampleReviews);
-        fetchWeatherForLocation();
+        const interval = setInterval(() => {
+            setCurrentImageIndex((prevIndex) =>
+                (prevIndex + 1) % hotelImages.length
+            );
+        }, 3000);
+
+        return () => clearInterval(interval);
     }, []);
 
-    const fetchWeatherForLocation = async () => {
-        try {
-            const response = await fetch(
-                `https://api.openweathermap.org/data/2.5/weather?q=${hotel.location}&appid=demo_key&units=metric`
-            );
-            if (response.ok) {
-                const data = await response.json();
-                setWeather(data);
-            }
-        } catch (error) {
-            console.log('Weather API not available');
-        }
-    };
+    const renderAmenity = (amenity, index) => (
+        <View key={index} style={styles.amenityItem}>
+            <Text style={styles.amenityIcon}>{getAmenityIcon(amenity)}</Text>
+            <Text style={styles.amenityText}>{amenity}</Text>
+        </View>
+    );
 
-    const handleBookNow = () => {
-        if (!user) {
-            Alert.alert(
-                'Sign In Required',
-                'Please sign in to book a hotel.',
-                [{ text: 'OK', onPress: () => navigation.navigate('SignIn') }]
-            );
-            return;
-        }
-        navigation.navigate('Booking', { hotel });
-    };
-
-    const handleAddReview = () => {
-        if (!user) {
-            Alert.alert('Sign In Required', 'Please sign in to add a review.');
-            return;
-        }
-
-        if (userReview) {
-            Alert.alert('Review Exists', 'You have already reviewed this hotel.');
-            return;
-        }
-
-        setShowReviewModal(true);
-    };
-
-    const submitReview = () => {
-        if (!reviewText.trim()) {
-            Alert.alert('Error', 'Please enter your review.');
-            return;
-        }
-
-        const newReview = {
-            id: Date.now(),
-            userName: user.displayName,
-            rating: reviewRating,
-            text: reviewText,
-            date: new Date().toISOString().split('T')[0]
+    const getAmenityIcon = (amenity) => {
+        const icons = {
+            'WiFi': '📶',
+            'Pool': '🏊',
+            'Gym': '💪',
+            'Restaurant': '🍽️',
+            'Beach Access': '🏖️',
+            'Spa': '🌸',
+            'Fireplace': '🔥',
+            'Skiing': '⛷️',
+            'Business Center': '💼',
+            'Parking': '🚗',
+            'Bike Rental': '🚲'
         };
-
-        setReviews([newReview, ...reviews]);
-        setUserReview(newReview);
-        setShowReviewModal(false);
-        setReviewText('');
-        setReviewRating(5);
-        Alert.alert('Success', 'Thank you for your review!');
-    };
-
-    const renderStars = (rating) => {
-        return Array.from({ length: 5 }, (_, index) => (
-            <Ionicons
-                key={index}
-                name={index < rating ? 'star' : 'star-outline'}
-                size={16}
-                color="#FFD700"
-            />
-        ));
-    };
-
-    const renderRatingStars = (rating, onPress) => {
-        return Array.from({ length: 5 }, (_, index) => (
-            <TouchableOpacity key={index} onPress={() => onPress(index + 1)}>
-                <Ionicons
-                    name={index < rating ? 'star' : 'star-outline'}
-                    size={32}
-                    color="#FFD700"
-                />
-            </TouchableOpacity>
-        ));
+        return icons[amenity] || '✓';
     };
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => navigation.goBack()}
-                >
-                    <Ionicons name="arrow-back" size={24} color="#333" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Hotel Details</Text>
-                <View style={styles.placeholder} />
-            </View>
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+                <View style={styles.imageContainer}>
+                    <Image
+                        source={{ uri: hotelImages[currentImageIndex] }}
+                        style={styles.hotelImage}
+                    />
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => navigation.goBack()}
+                    >
+                        <Text style={styles.backButtonText}>← Back</Text>
+                    </TouchableOpacity>
+                    <View style={styles.imageIndicator}>
+                        {hotelImages.map((_, index) => (
+                            <View
+                                key={index}
+                                style={[
+                                    styles.indicatorDot,
+                                    index === currentImageIndex && styles.activeIndicatorDot
+                                ]}
+                            />
+                        ))}
+                    </View>
+                </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-                <Image source={{ uri: hotel.image }} style={styles.heroImage} />
-
-                <View style={styles.content}>
-                    <View style={styles.hotelHeader}>
+                <View style={styles.contentContainer}>
+                    <View style={styles.headerInfo}>
                         <Text style={styles.hotelName}>{hotel.name}</Text>
                         <View style={styles.locationContainer}>
-                            <Ionicons name="location-outline" size={20} color="#666" />
+                            <Text style={styles.locationIcon}>📍</Text>
                             <Text style={styles.location}>{hotel.location}</Text>
                         </View>
-                        <View style={styles.ratingContainer}>
-                            <View style={styles.stars}>
-                                {renderStars(Math.floor(hotel.rating))}
+                        <View style={styles.ratingPriceContainer}>
+                            <View style={styles.ratingContainer}>
+                                <Text style={styles.starIcon}>⭐</Text>
+                                <Text style={styles.rating}>{hotel.rating}</Text>
+                                <Text style={styles.ratingText}>({Math.floor(Math.random() * 500) + 100} reviews)</Text>
                             </View>
-                            <Text style={styles.ratingText}>{hotel.rating} ({reviews.length} reviews)</Text>
+                            <Text style={styles.price}>${hotel.price}/night</Text>
                         </View>
                     </View>
 
-                    {weather && (
-                        <View style={styles.weatherContainer}>
-                            <Ionicons name="sunny-outline" size={24} color="#007AFF" />
-                            <View>
-                                <Text style={styles.weatherTemp}>{Math.round(weather.main?.temp)}°C</Text>
-                                <Text style={styles.weatherDesc}>{weather.weather?.[0]?.description}</Text>
-                            </View>
-                        </View>
-                    )}
-
-                    <View style={styles.section}>
+                    <View style={styles.descriptionContainer}>
                         <Text style={styles.sectionTitle}>Description</Text>
                         <Text style={styles.description}>{hotel.description}</Text>
                     </View>
 
-                    <View style={styles.section}>
+                    <View style={styles.amenitiesContainer}>
                         <Text style={styles.sectionTitle}>Amenities</Text>
-                        <View style={styles.amenitiesContainer}>
-                            {hotel.amenities.map((amenity, index) => (
-                                <View key={index} style={styles.amenityItem}>
-                                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                                    <Text style={styles.amenityText}>{amenity}</Text>
-                                </View>
-                            ))}
+                        <View style={styles.amenitiesList}>
+                            {hotel.amenities.map((amenity, index) => renderAmenity(amenity, index))}
                         </View>
                     </View>
 
-                    <View style={styles.section}>
+                    <View style={styles.reviewsContainer}>
                         <View style={styles.reviewsHeader}>
-                            <Text style={styles.sectionTitle}>Reviews ({reviews.length})</Text>
+                            <Text style={styles.sectionTitle}>Reviews</Text>
                             <TouchableOpacity
-                                style={styles.addReviewButton}
-                                onPress={handleAddReview}
+                                onPress={() => navigation.navigate('Reviews', { hotel })}
                             >
-                                <Text style={styles.addReviewText}>Add Review</Text>
+                                <Text style={styles.seeAllText}>See All</Text>
                             </TouchableOpacity>
                         </View>
-
-                        {reviews.length === 0 ? (
-                            <Text style={styles.noReviewsText}>No reviews yet. Be the first to review!</Text>
-                        ) : (
-                            reviews.map((review) => (
-                                <View key={review.id} style={styles.reviewItem}>
-                                    <View style={styles.reviewHeader}>
-                                        <Text style={styles.reviewerName}>{review.userName}</Text>
-                                        <View style={styles.reviewStars}>
-                                            {renderStars(review.rating)}
+                        <View style={styles.reviewPreview}>
+                            <View style={styles.reviewItem}>
+                                <View style={styles.reviewHeader}>
+                                    <View style={styles.reviewerInfo}>
+                                        <View style={styles.reviewerAvatar}>
+                                            <Text style={styles.reviewerInitial}>J</Text>
+                                        </View>
+                                        <View>
+                                            <Text style={styles.reviewerName}>John Doe</Text>
+                                            <View style={styles.reviewRating}>
+                                                <Text style={styles.starsText}>⭐⭐⭐⭐⭐</Text>
+                                            </View>
                                         </View>
                                     </View>
-                                    <Text style={styles.reviewText}>{review.text}</Text>
-                                    <Text style={styles.reviewDate}>{review.date}</Text>
                                 </View>
-                            ))
-                        )}
-                    </View>
-
-                    <View style={styles.priceSection}>
-                        <View>
-                            <Text style={styles.priceLabel}>Price per night</Text>
-                            <Text style={styles.price}>${hotel.price}</Text>
+                                <Text style={styles.reviewText}>
+                                    Amazing hotel with great service and beautiful views. Highly recommended!
+                                </Text>
+                            </View>
                         </View>
-                        <TouchableOpacity style={styles.bookButton} onPress={handleBookNow}>
-                            <Text style={styles.bookButtonText}>Book Now</Text>
-                        </TouchableOpacity>
                     </View>
                 </View>
             </ScrollView>
 
-            <Modal
-                visible={showReviewModal}
-                animationType="slide"
-                presentationStyle="pageSheet"
-                onRequestClose={() => setShowReviewModal(false)}
-            >
-                <SafeAreaView style={styles.modalContainer}>
-                    <View style={styles.modalHeader}>
-                        <TouchableOpacity onPress={() => setShowReviewModal(false)}>
-                            <Text style={styles.cancelText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.modalTitle}>Add Review</Text>
-                        <TouchableOpacity onPress={submitReview}>
-                            <Text style={styles.submitText}>Submit</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.modalContent}>
-                        <Text style={styles.ratingLabel}>Rating</Text>
-                        <View style={styles.ratingSelector}>
-                            {renderRatingStars(reviewRating, setReviewRating)}
-                        </View>
-
-                        <Text style={styles.reviewLabel}>Your Review</Text>
-                        <TextInput
-                            style={styles.reviewInput}
-                            multiline
-                            numberOfLines={6}
-                            placeholder="Share your experience..."
-                            value={reviewText}
-                            onChangeText={setReviewText}
-                            textAlignVertical="top"
-                        />
-                    </View>
-                </SafeAreaView>
-            </Modal>
+            <View style={styles.bottomContainer}>
+                <View style={styles.priceContainer}>
+                    <Text style={styles.priceLabel}>Starting from</Text>
+                    <Text style={styles.bottomPrice}>${hotel.price}/night</Text>
+                </View>
+                <TouchableOpacity
+                    style={styles.bookButton}
+                    onPress={() => navigation.navigate('Booking', { hotel })}
+                >
+                    <Text style={styles.bookButtonText}>Book Now</Text>
+                </TouchableOpacity>
+            </View>
         </SafeAreaView>
     );
 };
@@ -265,39 +159,52 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#FFFFFF',
     },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
+    scrollView: {
+        flex: 1,
+    },
+    imageContainer: {
+        position: 'relative',
+    },
+    hotelImage: {
+        width: width,
+        height: 300,
     },
     backButton: {
-        width: 40,
-        height: 40,
+        position: 'absolute',
+        top: 50,
+        left: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
         borderRadius: 20,
-        backgroundColor: '#F5F5F5',
-        alignItems: 'center',
-        justifyContent: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
-    headerTitle: {
-        flex: 1,
-        fontSize: 18,
+    backButtonText: {
+        color: 'white',
+        fontSize: 16,
         fontWeight: '600',
-        textAlign: 'center',
     },
-    placeholder: {
-        width: 40,
+    imageIndicator: {
+        position: 'absolute',
+        bottom: 20,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 8,
     },
-    heroImage: {
-        width: '100%',
-        height: 250,
+    indicatorDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: 'rgba(255, 255, 255, 0.5)',
     },
-    content: {
+    activeIndicatorDot: {
+        backgroundColor: 'white',
+    },
+    contentContainer: {
         padding: 20,
     },
-    hotelHeader: {
+    headerInfo: {
         marginBottom: 24,
     },
     hotelName: {
@@ -309,53 +216,52 @@ const styles = StyleSheet.create({
     locationContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 16,
+    },
+    locationIcon: {
+        fontSize: 18,
+        marginRight: 4,
     },
     location: {
-        marginLeft: 8,
         fontSize: 16,
         color: '#666',
+    },
+    ratingPriceContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     ratingContainer: {
         flexDirection: 'row',
         alignItems: 'center',
     },
-    stars: {
-        flexDirection: 'row',
-        marginRight: 8,
+    starIcon: {
+        fontSize: 18,
+        marginRight: 4,
+    },
+    rating: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#333',
     },
     ratingText: {
+        marginLeft: 8,
         fontSize: 14,
         color: '#666',
     },
-    weatherContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#F0F8FF',
-        padding: 16,
-        borderRadius: 12,
-        marginBottom: 24,
-    },
-    weatherTemp: {
-        fontSize: 18,
+    price: {
+        fontSize: 24,
         fontWeight: 'bold',
         color: '#007AFF',
-        marginLeft: 12,
     },
-    weatherDesc: {
-        fontSize: 14,
-        color: '#666',
-        marginLeft: 12,
-        textTransform: 'capitalize',
-    },
-    section: {
-        marginBottom: 32,
+    descriptionContainer: {
+        marginBottom: 24,
     },
     sectionTitle: {
         fontSize: 20,
         fontWeight: 'bold',
         color: '#333',
-        marginBottom: 16,
+        marginBottom: 12,
     },
     description: {
         fontSize: 16,
@@ -363,16 +269,31 @@ const styles = StyleSheet.create({
         lineHeight: 24,
     },
     amenitiesContainer: {
+        marginBottom: 24,
+    },
+    amenitiesList: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
         gap: 12,
     },
     amenityItem: {
         flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: '#F5F5F5',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+    },
+    amenityIcon: {
+        fontSize: 16,
+        marginRight: 6,
     },
     amenityText: {
-        marginLeft: 12,
-        fontSize: 16,
+        fontSize: 14,
         color: '#333',
+    },
+    reviewsContainer: {
+        marginBottom: 100,
     },
     reviewsHeader: {
         flexDirection: 'row',
@@ -380,27 +301,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 16,
     },
-    addReviewButton: {
-        backgroundColor: '#007AFF',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-    },
-    addReviewText: {
-        color: '#FFFFFF',
+    seeAllText: {
         fontSize: 14,
+        color: '#007AFF',
         fontWeight: '600',
     },
-    noReviewsText: {
-        fontSize: 16,
-        color: '#999',
-        textAlign: 'center',
-        fontStyle: 'italic',
+    reviewPreview: {
+        backgroundColor: '#F9F9F9',
+        borderRadius: 12,
+        padding: 16,
     },
     reviewItem: {
-        backgroundColor: '#F9F9F9',
-        padding: 16,
-        borderRadius: 12,
         marginBottom: 12,
     },
     reviewHeader: {
@@ -409,40 +320,65 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 8,
     },
+    reviewerInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    reviewerAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#007AFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    reviewerInitial: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
     reviewerName: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: '600',
         color: '#333',
+        marginBottom: 2,
     },
-    reviewStars: {
+    reviewRating: {
         flexDirection: 'row',
+        gap: 2,
+    },
+    starsText: {
+        fontSize: 12,
     },
     reviewText: {
         fontSize: 14,
         color: '#666',
         lineHeight: 20,
-        marginBottom: 8,
     },
-    reviewDate: {
-        fontSize: 12,
-        color: '#999',
-    },
-    priceSection: {
+    bottomContainer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: 'white',
+        padding: 20,
+        borderTopWidth: 1,
+        borderTopColor: '#E5E5E5',
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#F9F9F9',
-        padding: 20,
-        borderRadius: 16,
-        marginTop: 20,
+    },
+    priceContainer: {
+        flex: 1,
     },
     priceLabel: {
-        fontSize: 14,
+        fontSize: 12,
         color: '#666',
-        marginBottom: 4,
+        marginBottom: 2,
     },
-    price: {
-        fontSize: 24,
+    bottomPrice: {
+        fontSize: 20,
         fontWeight: 'bold',
         color: '#007AFF',
     },
@@ -451,65 +387,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: 32,
         paddingVertical: 16,
         borderRadius: 12,
+        marginLeft: 20,
     },
     bookButtonText: {
-        color: '#FFFFFF',
+        color: 'white',
         fontSize: 16,
         fontWeight: '600',
-    },
-    modalContainer: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
-    },
-    cancelText: {
-        fontSize: 16,
-        color: '#007AFF',
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-    },
-    submitText: {
-        fontSize: 16,
-        color: '#007AFF',
-        fontWeight: '600',
-    },
-    modalContent: {
-        flex: 1,
-        padding: 20,
-    },
-    ratingLabel: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 16,
-    },
-    ratingSelector: {
-        flexDirection: 'row',
-        gap: 8,
-        marginBottom: 32,
-    },
-    reviewLabel: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 16,
-    },
-    reviewInput: {
-        borderWidth: 1,
-        borderColor: '#E5E5E5',
-        borderRadius: 12,
-        padding: 16,
-        fontSize: 16,
-        minHeight: 120,
-        backgroundColor: '#F9F9F9',
     },
 });
 

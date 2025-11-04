@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { ref, set, get } from 'firebase/database';
+import { auth, database } from '../config/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AuthContext = createContext();
@@ -27,18 +27,32 @@ export const AuthProvider = ({ children }) => {
 
             try {
                 if (firebaseUser) {
-                    const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-                    const userData = userDoc.exists() ? userDoc.data() : {};
+                    let userData = {
+                        uid: firebaseUser.uid,
+                        email: firebaseUser.email,
+                        displayName: firebaseUser.displayName || firebaseUser.email.split('@')[0]
+                    };
+
+                    // Try to get user profile from your existing users path (non-destructive)
+                    try {
+                        const userRef = ref(database, `users/${firebaseUser.uid}`);
+                        const snapshot = await get(userRef);
+
+                        if (snapshot.exists()) {
+                            const existingData = snapshot.val();
+                            userData = {
+                                ...userData,
+                                ...existingData
+                            };
+                        }
+                        // Don't create user here to avoid conflicts with your existing system
+                    } catch (dbError) {
+                        console.log('Database access limited, using basic user data');
+                    }
 
                     if (mounted) {
-                        setUser({
-                            uid: firebaseUser.uid,
-                            email: firebaseUser.email,
-                            displayName: userData.displayName || firebaseUser.email,
-                            ...userData
-                        });
-
-                        const onboardingStatus = await AsyncStorage.getItem(`onboarding_${firebaseUser.uid}`);
+                        setUser(userData);
+                        const onboardingStatus = await AsyncStorage.getItem(`hotelapp_onboarding_${firebaseUser.uid}`);
                         setHasCompletedOnboarding(onboardingStatus === 'completed');
                     }
                 } else {
@@ -50,8 +64,18 @@ export const AuthProvider = ({ children }) => {
             } catch (error) {
                 console.error('Auth state change error:', error);
                 if (mounted) {
-                    setUser(null);
-                    setHasCompletedOnboarding(false);
+                    if (firebaseUser) {
+                        setUser({
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            displayName: firebaseUser.email.split('@')[0]
+                        });
+                        const onboardingStatus = await AsyncStorage.getItem(`hotelapp_onboarding_${firebaseUser.uid}`);
+                        setHasCompletedOnboarding(onboardingStatus === 'completed');
+                    } else {
+                        setUser(null);
+                        setHasCompletedOnboarding(false);
+                    }
                 }
             } finally {
                 if (mounted) {
@@ -69,12 +93,7 @@ export const AuthProvider = ({ children }) => {
     const signup = async (email, password, displayName) => {
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            await setDoc(doc(db, 'users', userCredential.user.uid), {
-                displayName,
-                email,
-                createdAt: new Date().toISOString(),
-                bookings: []
-            });
+            // Don't auto-create user in database to avoid conflicts with existing system
             return userCredential;
         } catch (error) {
             throw error;
@@ -95,7 +114,7 @@ export const AuthProvider = ({ children }) => {
 
     const completeOnboarding = async () => {
         if (user) {
-            await AsyncStorage.setItem(`onboarding_${user.uid}`, 'completed');
+            await AsyncStorage.setItem(`hotelapp_onboarding_${user.uid}`, 'completed');
             setHasCompletedOnboarding(true);
         }
     };

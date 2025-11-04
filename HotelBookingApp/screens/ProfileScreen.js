@@ -1,34 +1,47 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Modal, FlatList } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ref, get } from 'firebase/database';
+import { database } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
 
 const ProfileScreen = ({ navigation }) => {
     const { user, logout } = useAuth();
-    const [userBookings, setUserBookings] = useState([]);
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [editedName, setEditedName] = useState('');
+    const [bookings, setBookings] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (user) {
-            setEditedName(user.displayName || '');
-            fetchUserData();
+        if (user && user.uid && database) {
+            fetchUserBookings();
+        } else {
+            setIsLoading(false);
         }
     }, [user]);
 
-    const fetchUserData = async () => {
+    const fetchUserBookings = async () => {
+        if (!user || !user.uid || !database) {
+            setBookings([]);
+            setIsLoading(false);
+            return;
+        }
+
         try {
-            const userDoc = await getDoc(doc(db, 'users', user.uid));
-            if (userDoc.exists()) {
-                const userData = userDoc.data();
-                setUserBookings(userData.bookings || []);
+            const bookingsRef = ref(database, `hotelBookings/${user.uid}`);
+            const snapshot = await get(bookingsRef);
+
+            if (snapshot.exists()) {
+                const bookingsData = snapshot.val();
+                const bookingsArray = Object.keys(bookingsData).map(key => ({
+                    ...bookingsData[key],
+                    id: key
+                }));
+                setBookings(bookingsArray.reverse());
+            } else {
+                setBookings([]);
             }
         } catch (error) {
-            console.error('Error fetching user data:', error);
+            console.error('Error fetching bookings:', error);
+            setBookings([]);
         } finally {
             setIsLoading(false);
         }
@@ -40,127 +53,124 @@ const ProfileScreen = ({ navigation }) => {
             'Are you sure you want to logout?',
             [
                 { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Logout',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await logout();
-                        } catch (error) {
-                            Alert.alert('Error', 'Failed to logout');
-                        }
-                    }
-                }
+                { text: 'Logout', style: 'destructive', onPress: () => logout() }
             ]
         );
     };
 
-    const handleUpdateProfile = async () => {
-        if (!editedName.trim()) {
-            Alert.alert('Error', 'Name cannot be empty');
-            return;
-        }
-
-        try {
-            await updateDoc(doc(db, 'users', user.uid), {
-                displayName: editedName.trim()
-            });
-            setShowEditModal(false);
-            Alert.alert('Success', 'Profile updated successfully');
-
-        } catch (error) {
-            Alert.alert('Error', 'Failed to update profile');
-        }
-    };
-
     const formatDate = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        } catch (error) {
+            return 'Invalid Date';
+        }
     };
 
-    const renderBookingItem = ({ item }) => (
-        <View style={styles.bookingCard}>
-            <View style={styles.bookingHeader}>
-                <Text style={styles.hotelName}>{item.hotelName}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: item.status === 'confirmed' ? '#4CAF50' : '#FF9800' }]}>
-                    <Text style={styles.statusText}>{item.status}</Text>
-                </View>
-            </View>
-
-            <View style={styles.locationContainer}>
-                <Ionicons name="location-outline" size={16} color="#666" />
-                <Text style={styles.bookingLocation}>{item.hotelLocation}</Text>
-            </View>
-
-            <View style={styles.bookingDetails}>
-                <View style={styles.detailItem}>
-                    <Ionicons name="calendar-outline" size={16} color="#007AFF" />
-                    <Text style={styles.detailText}>
-                        {formatDate(item.checkInDate)} - {formatDate(item.checkOutDate)}
+    const renderBookingCard = (booking) => (
+        <View key={booking.id} style={styles.bookingCard}>
+            <Image source={{ uri: booking.hotelImage }} style={styles.bookingImage} />
+            <View style={styles.bookingInfo}>
+                <Text style={styles.bookingHotelName}>{booking.hotelName || 'Unknown Hotel'}</Text>
+                <View style={styles.bookingDates}>
+                    <Text style={styles.bookingDateText}>
+                        📅 {formatDate(booking.checkInDate)} - {formatDate(booking.checkOutDate)}
                     </Text>
                 </View>
-
-                <View style={styles.detailItem}>
-                    <Ionicons name="bed-outline" size={16} color="#007AFF" />
-                    <Text style={styles.detailText}>{item.numberOfRooms} Room(s)</Text>
+                <View style={styles.bookingDetails}>
+                    <Text style={styles.bookingDetailText}>
+                        {booking.nights || 1} night{(booking.nights || 1) > 1 ? 's' : ''} • {booking.guests || 1} guest{(booking.guests || 1) > 1 ? 's' : ''}
+                    </Text>
+                    <Text style={styles.bookingAmount}>${(booking.totalAmount || 0).toFixed(2)}</Text>
                 </View>
-
-                <View style={styles.detailItem}>
-                    <Ionicons name="card-outline" size={16} color="#007AFF" />
-                    <Text style={styles.detailText}>${item.totalCost}</Text>
+                <View style={styles.bookingStatus}>
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) }]}>
+                        <Text style={styles.statusText}>
+                            {(booking.status || 'pending').charAt(0).toUpperCase() + (booking.status || 'pending').slice(1)}
+                        </Text>
+                    </View>
                 </View>
             </View>
-
-            <Text style={styles.bookingDate}>
-                Booked on {formatDate(item.bookingDate)}
-            </Text>
         </View>
     );
 
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'confirmed': return '#28A745';
+            case 'pending': return '#FFC107';
+            case 'cancelled': return '#DC3545';
+            default: return '#6C757D';
+        }
+    };
+
+    // Early return if user is not loaded
+    if (!user) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={styles.loadingText}>Loading user data...</Text>
+            </View>
+        );
+    }
+
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Profile</Text>
-            </View>
-
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                <View style={styles.profileSection}>
-                    <View style={styles.profileIcon}>
-                        <Ionicons name="person" size={40} color="#007AFF" />
-                    </View>
-
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+                <View style={styles.header}>
                     <View style={styles.profileInfo}>
-                        <Text style={styles.userName}>{user?.displayName || 'User'}</Text>
-                        <Text style={styles.userEmail}>{user?.email}</Text>
+                        <View style={styles.avatar}>
+                            <Text style={styles.avatarText}>
+                                {user?.displayName?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                            </Text>
+                        </View>
+                        <View style={styles.userInfo}>
+                            <Text style={styles.userName}>{user?.displayName || 'User'}</Text>
+                            <Text style={styles.userEmail}>{user?.email || ''}</Text>
+                        </View>
                     </View>
+                </View>
 
-                    <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={() => setShowEditModal(true)}
-                    >
-                        <Ionicons name="pencil-outline" size={20} color="#007AFF" />
-                    </TouchableOpacity>
+                <View style={styles.statsContainer}>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statNumber}>{bookings.length}</Text>
+                        <Text style={styles.statLabel}>Total Bookings</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                        <Text style={styles.statNumber}>
+                            {bookings.filter(b => b.status === 'confirmed').length}
+                        </Text>
+                        <Text style={styles.statLabel}>Confirmed</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                        <Text style={styles.statNumber}>
+                            ${bookings.reduce((total, booking) => total + (booking.totalAmount || 0), 0).toFixed(0)}
+                        </Text>
+                        <Text style={styles.statLabel}>Total Spent</Text>
+                    </View>
                 </View>
 
                 <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>My Bookings</Text>
-                        <Text style={styles.bookingCount}>({userBookings.length})</Text>
-                    </View>
-
+                    <Text style={styles.sectionTitle}>My Bookings</Text>
                     {isLoading ? (
                         <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color="#007AFF" />
                             <Text style={styles.loadingText}>Loading bookings...</Text>
                         </View>
-                    ) : userBookings.length === 0 ? (
+                    ) : bookings.length > 0 ? (
+                        <View style={styles.bookingsContainer}>
+                            {bookings.map(renderBookingCard)}
+                        </View>
+                    ) : (
                         <View style={styles.emptyContainer}>
-                            <Ionicons name="calendar-outline" size={64} color="#CCC" />
+                            <Text style={styles.emptyIcon}>📅</Text>
                             <Text style={styles.emptyText}>No bookings yet</Text>
-                            <Text style={styles.emptySubtext}>Start exploring hotels to make your first booking</Text>
+                            <Text style={styles.emptySubtext}>Start exploring and book your first hotel!</Text>
                             <TouchableOpacity
                                 style={styles.exploreButton}
                                 onPress={() => navigation.navigate('Explore')}
@@ -168,66 +178,54 @@ const ProfileScreen = ({ navigation }) => {
                                 <Text style={styles.exploreButtonText}>Explore Hotels</Text>
                             </TouchableOpacity>
                         </View>
-                    ) : (
-                        <FlatList
-                            data={userBookings}
-                            renderItem={renderBookingItem}
-                            keyExtractor={(item) => item.id}
-                            scrollEnabled={false}
-                            contentContainerStyle={styles.bookingsList}
-                        />
                     )}
                 </View>
 
-                <View style={styles.actionSection}>
-                    <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                        <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-                        <Text style={styles.logoutText}>Logout</Text>
-                    </TouchableOpacity>
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Account</Text>
+                    <View style={styles.menuContainer}>
+                        <TouchableOpacity style={styles.menuItem}>
+                            <View style={styles.menuItemLeft}>
+                                <Text style={styles.menuIcon}>👤</Text>
+                                <Text style={styles.menuItemText}>Edit Profile</Text>
+                            </View>
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.menuItem}>
+                            <View style={styles.menuItemLeft}>
+                                <Text style={styles.menuIcon}>🔔</Text>
+                                <Text style={styles.menuItemText}>Notifications</Text>
+                            </View>
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.menuItem}>
+                            <View style={styles.menuItemLeft}>
+                                <Text style={styles.menuIcon}>❓</Text>
+                                <Text style={styles.menuItemText}>Help & Support</Text>
+                            </View>
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.menuItem}>
+                            <View style={styles.menuItemLeft}>
+                                <Text style={styles.menuIcon}>⚙️</Text>
+                                <Text style={styles.menuItemText}>Settings</Text>
+                            </View>
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={[styles.menuItem, styles.logoutItem]} onPress={handleLogout}>
+                            <View style={styles.menuItemLeft}>
+                                <Text style={styles.menuIcon}>🚪</Text>
+                                <Text style={[styles.menuItemText, styles.logoutText]}>Logout</Text>
+                            </View>
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </ScrollView>
-
-            <Modal
-                visible={showEditModal}
-                animationType="slide"
-                presentationStyle="pageSheet"
-                onRequestClose={() => setShowEditModal(false)}
-            >
-                <SafeAreaView style={styles.modalContainer}>
-                    <View style={styles.modalHeader}>
-                        <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                            <Text style={styles.cancelText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.modalTitle}>Edit Profile</Text>
-                        <TouchableOpacity onPress={handleUpdateProfile}>
-                            <Text style={styles.saveText}>Save</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.modalContent}>
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.inputLabel}>Full Name</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editedName}
-                                onChangeText={setEditedName}
-                                placeholder="Enter your full name"
-                                autoCapitalize="words"
-                            />
-                        </View>
-
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.inputLabel}>Email</Text>
-                            <TextInput
-                                style={[styles.input, styles.disabledInput]}
-                                value={user?.email}
-                                editable={false}
-                            />
-                            <Text style={styles.helperText}>Email cannot be changed</Text>
-                        </View>
-                    </View>
-                </SafeAreaView>
-            </Modal>
         </SafeAreaView>
     );
 };
@@ -237,41 +235,48 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#FFFFFF',
     },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+    },
+    loadingText: {
+        fontSize: 16,
+        color: '#666',
+        marginTop: 8,
+    },
+    scrollView: {
+        flex: 1,
+    },
     header: {
         paddingHorizontal: 20,
-        paddingVertical: 20,
+        paddingVertical: 24,
+        backgroundColor: '#F8F9FA',
     },
-    title: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    content: {
-        flex: 1,
-        paddingHorizontal: 20,
-    },
-    profileSection: {
+    profileInfo: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F9F9F9',
-        padding: 20,
-        borderRadius: 16,
-        marginBottom: 32,
     },
-    profileIcon: {
+    avatar: {
         width: 60,
         height: 60,
         borderRadius: 30,
-        backgroundColor: '#E3F2FD',
-        alignItems: 'center',
+        backgroundColor: '#007AFF',
         justifyContent: 'center',
+        alignItems: 'center',
         marginRight: 16,
     },
-    profileInfo: {
+    avatarText: {
+        color: 'white',
+        fontSize: 24,
+        fontWeight: 'bold',
+    },
+    userInfo: {
         flex: 1,
     },
     userName: {
-        fontSize: 18,
+        fontSize: 22,
         fontWeight: 'bold',
         color: '#333',
         marginBottom: 4,
@@ -280,197 +285,186 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#666',
     },
-    editButton: {
-        padding: 8,
+    statsContainer: {
+        flexDirection: 'row',
+        backgroundColor: 'white',
+        marginHorizontal: 20,
+        marginVertical: 16,
+        paddingVertical: 20,
+        borderRadius: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    statItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    statNumber: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#007AFF',
+        marginBottom: 4,
+    },
+    statLabel: {
+        fontSize: 12,
+        color: '#666',
+        textAlign: 'center',
+    },
+    statDivider: {
+        width: 1,
+        backgroundColor: '#E5E5E5',
+        marginVertical: 8,
     },
     section: {
-        marginBottom: 32,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 16,
+        paddingHorizontal: 20,
+        marginBottom: 24,
     },
     sectionTitle: {
         fontSize: 20,
         fontWeight: 'bold',
         color: '#333',
+        marginBottom: 16,
     },
-    bookingCount: {
+    bookingsContainer: {
+        gap: 16,
+    },
+    bookingCard: {
+        backgroundColor: 'white',
+        borderRadius: 16,
+        padding: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
+        flexDirection: 'row',
+    },
+    bookingImage: {
+        width: 80,
+        height: 80,
+        borderRadius: 12,
+        marginRight: 16,
+    },
+    bookingInfo: {
+        flex: 1,
+        justifyContent: 'space-between',
+    },
+    bookingHotelName: {
         fontSize: 16,
-        color: '#666',
-        marginLeft: 8,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 4,
     },
-    loadingContainer: {
-        padding: 40,
+    bookingDates: {
+        flexDirection: 'row',
         alignItems: 'center',
+        marginBottom: 4,
     },
-    loadingText: {
-        fontSize: 16,
+    bookingDateText: {
+        fontSize: 12,
         color: '#666',
+    },
+    bookingDetails: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    bookingDetailText: {
+        fontSize: 12,
+        color: '#666',
+    },
+    bookingAmount: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#007AFF',
+    },
+    bookingStatus: {
+        alignItems: 'flex-start',
+    },
+    statusBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    statusText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: 'white',
     },
     emptyContainer: {
         alignItems: 'center',
         paddingVertical: 40,
     },
+    emptyIcon: {
+        fontSize: 64,
+        marginBottom: 16,
+    },
     emptyText: {
         fontSize: 18,
         fontWeight: '600',
         color: '#666',
-        marginTop: 16,
+        marginBottom: 8,
     },
     emptySubtext: {
         fontSize: 14,
         color: '#999',
-        marginTop: 8,
         textAlign: 'center',
+        marginBottom: 24,
     },
     exploreButton: {
         backgroundColor: '#007AFF',
         paddingHorizontal: 24,
         paddingVertical: 12,
-        borderRadius: 20,
-        marginTop: 20,
+        borderRadius: 8,
     },
     exploreButtonText: {
-        color: '#FFFFFF',
+        color: 'white',
         fontSize: 14,
         fontWeight: '600',
     },
-    bookingsList: {
-        gap: 16,
-    },
-    bookingCard: {
-        backgroundColor: '#F9F9F9',
+    menuContainer: {
+        backgroundColor: 'white',
         borderRadius: 16,
-        padding: 16,
+        paddingVertical: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
     },
-    bookingHeader: {
+    menuItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
-    },
-    hotelName: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#333',
-        flex: 1,
-    },
-    statusBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    statusText: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '600',
-        textTransform: 'capitalize',
-    },
-    locationContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    bookingLocation: {
-        marginLeft: 4,
-        fontSize: 14,
-        color: '#666',
-    },
-    bookingDetails: {
-        gap: 8,
-        marginBottom: 12,
-    },
-    detailItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    detailText: {
-        marginLeft: 8,
-        fontSize: 14,
-        color: '#333',
-    },
-    bookingDate: {
-        fontSize: 12,
-        color: '#999',
-        fontStyle: 'italic',
-    },
-    actionSection: {
-        marginBottom: 40,
-    },
-    logoutButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#FFF5F5',
-        borderRadius: 12,
+        paddingHorizontal: 16,
         paddingVertical: 16,
-        borderWidth: 1,
-        borderColor: '#FFEBEE',
+    },
+    menuItemLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    menuIcon: {
+        fontSize: 20,
+        marginRight: 12,
+    },
+    menuItemText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    chevron: {
+        fontSize: 20,
+        color: '#CCC',
+    },
+    logoutItem: {
+        borderTopWidth: 1,
+        borderTopColor: '#F0F0F0',
     },
     logoutText: {
-        marginLeft: 12,
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#FF3B30',
-    },
-    modalContainer: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
-    },
-    cancelText: {
-        fontSize: 16,
-        color: '#007AFF',
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-    },
-    saveText: {
-        fontSize: 16,
-        color: '#007AFF',
-        fontWeight: '600',
-    },
-    modalContent: {
-        flex: 1,
-        padding: 20,
-    },
-    inputContainer: {
-        marginBottom: 24,
-    },
-    inputLabel: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 8,
-    },
-    input: {
-        borderWidth: 1,
-        borderColor: '#E5E5E5',
-        borderRadius: 12,
-        paddingHorizontal: 16,
-        paddingVertical: 15,
-        fontSize: 16,
-        backgroundColor: '#F9F9F9',
-    },
-    disabledInput: {
-        backgroundColor: '#F0F0F0',
-        color: '#999',
-    },
-    helperText: {
-        fontSize: 12,
-        color: '#666',
-        marginTop: 4,
+        color: '#DC3545',
     },
 });
 

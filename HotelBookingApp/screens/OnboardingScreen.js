@@ -1,37 +1,33 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 
-const { width, height } = Dimensions.get('window');
-
-const onboardingData = [
-    {
-        id: 1,
-        title: 'Discover Amazing Hotels',
-        subtitle: 'Find the perfect place to stay for your next adventure',
-        image: require('../Materials/01-Onboarding Page/Onboarding 1.png'),
-    },
-    {
-        id: 2,
-        title: 'Book Your Stay',
-        subtitle: 'Easy booking process with instant confirmation',
-        image: require('../Materials/01-Onboarding Page/Onboarding 2.png'),
-    },
-    {
-        id: 3,
-        title: 'Enjoy Your Journey',
-        subtitle: 'Create memorable experiences at handpicked hotels',
-        image: require('../Materials/01-Onboarding Page/Onboarding 3.png'),
-    },
-];
-
 const OnboardingScreen = () => {
-    const [currentPage, setCurrentPage] = useState(0);
+    const [currentStep, setCurrentStep] = useState(0);
     const { completeOnboarding } = useAuth();
 
+    const onboardingSteps = [
+        {
+            title: 'Welcome to Hotel Booking',
+            description: 'Discover amazing hotels around the world',
+            image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400'
+        },
+        {
+            title: 'Easy Booking',
+            description: 'Book your perfect stay in just a few taps',
+            image: 'https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?w=400'
+        },
+        {
+            title: 'Best Prices',
+            description: 'Get the best deals and exclusive offers',
+            image: 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400'
+        }
+    ];
+
     const handleNext = () => {
-        if (currentPage < onboardingData.length - 1) {
-            setCurrentPage(currentPage + 1);
+        if (currentStep < onboardingSteps.length - 1) {
+            setCurrentStep(currentStep + 1);
         } else {
             completeOnboarding();
         }
@@ -42,53 +38,41 @@ const OnboardingScreen = () => {
     };
 
     return (
-        <View style={styles.container}>
-            <ScrollView
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={(event) => {
-                    const page = Math.round(event.nativeEvent.contentOffset.x / width);
-                    setCurrentPage(page);
-                }}
-            >
-                {onboardingData.map((item, index) => (
-                    <View key={item.id} style={styles.page}>
-                        <Image source={item.image} style={styles.image} resizeMode="contain" />
-                        <View style={styles.textContainer}>
-                            <Text style={styles.title}>{item.title}</Text>
-                            <Text style={styles.subtitle}>{item.subtitle}</Text>
-                        </View>
-                    </View>
-                ))}
-            </ScrollView>
+        <SafeAreaView style={styles.container}>
+            <View style={styles.content}>
+                <Image
+                    source={{ uri: onboardingSteps[currentStep].image }}
+                    style={styles.image}
+                />
+                <Text style={styles.title}>{onboardingSteps[currentStep].title}</Text>
+                <Text style={styles.description}>{onboardingSteps[currentStep].description}</Text>
+            </View>
 
             <View style={styles.bottomContainer}>
                 <View style={styles.pagination}>
-                    {onboardingData.map((_, index) => (
+                    {onboardingSteps.map((_, index) => (
                         <View
                             key={index}
                             style={[
                                 styles.paginationDot,
-                                index === currentPage ? styles.activeDot : styles.inactiveDot,
+                                index === currentStep && styles.activeDot
                             ]}
                         />
                     ))}
                 </View>
 
                 <View style={styles.buttonContainer}>
-                    <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-                        <Text style={styles.skipText}>Skip</Text>
+                    <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+                        <Text style={styles.skipButtonText}>Skip</Text>
                     </TouchableOpacity>
-
-                    <TouchableOpacity onPress={handleNext} style={styles.nextButton}>
-                        <Text style={styles.nextText}>
-                            {currentPage === onboardingData.length - 1 ? 'Get Started' : 'Next'}
+                    <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+                        <Text style={styles.nextButtonText}>
+                            {currentStep === onboardingSteps.length - 1 ? 'Get Started' : 'Next'}
                         </Text>
                     </TouchableOpacity>
                 </View>
             </View>
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -97,82 +81,73 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#FFFFFF',
     },
-    page: {
-        width,
+    content: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: 20,
+        paddingHorizontal: 40,
     },
     image: {
-        width: width * 0.8,
-        height: height * 0.4,
-        marginBottom: 50,
-    },
-    textContainer: {
-        alignItems: 'center',
-        paddingHorizontal: 20,
+        width: 300,
+        height: 200,
+        borderRadius: 16,
+        marginBottom: 40,
     },
     title: {
         fontSize: 28,
         fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 16,
         color: '#333',
-        textAlign: 'center',
-        marginBottom: 15,
     },
-    subtitle: {
+    description: {
         fontSize: 16,
-        color: '#666',
         textAlign: 'center',
+        color: '#666',
         lineHeight: 24,
     },
     bottomContainer: {
-        paddingHorizontal: 20,
-        paddingBottom: 50,
+        paddingHorizontal: 40,
+        paddingBottom: 40,
     },
     pagination: {
         flexDirection: 'row',
         justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 40,
+        marginBottom: 30,
     },
     paginationDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        marginHorizontal: 5,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#DDD',
+        marginHorizontal: 4,
     },
     activeDot: {
         backgroundColor: '#007AFF',
-    },
-    inactiveDot: {
-        backgroundColor: '#E5E5E5',
+        width: 20,
     },
     buttonContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
     },
     skipButton: {
-        paddingVertical: 15,
-        paddingHorizontal: 30,
+        paddingVertical: 16,
+        paddingHorizontal: 24,
     },
-    skipText: {
+    skipButtonText: {
         fontSize: 16,
-        color: '#999',
+        color: '#666',
     },
     nextButton: {
         backgroundColor: '#007AFF',
-        paddingVertical: 15,
-        paddingHorizontal: 30,
-        borderRadius: 25,
-        minWidth: 120,
-        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 32,
+        borderRadius: 8,
     },
-    nextText: {
-        color: '#FFFFFF',
+    nextButtonText: {
         fontSize: 16,
         fontWeight: '600',
+        color: '#FFFFFF',
     },
 });
 

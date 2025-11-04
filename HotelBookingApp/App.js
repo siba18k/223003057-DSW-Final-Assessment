@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import * as Font from 'expo-font';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import OnboardingScreen from './screens/OnboardingScreen';
 import SignInScreen from './screens/SignInScreen';
@@ -88,16 +89,34 @@ const AppContent = () => {
 
 const App = () => {
     const [isReady, setIsReady] = useState(false);
+    const [fontsLoaded, setFontsLoaded] = useState(false);
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setIsReady(true);
-        }, 1000);
-
-        return () => clearTimeout(timer);
+        loadFonts();
     }, []);
 
-    if (!isReady) {
+    const loadFonts = async () => {
+        try {
+            await Font.loadAsync({
+                ...Ionicons.font,
+            });
+            setFontsLoaded(true);
+        } catch (error) {
+            console.warn('Font loading error:', error);
+            setFontsLoaded(true); // Continue anyway
+        }
+    };
+
+    useEffect(() => {
+        if (fontsLoaded) {
+            const timer = setTimeout(() => {
+                setIsReady(true);
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [fontsLoaded]);
+
+    if (!fontsLoaded || !isReady) {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#007AFF" />

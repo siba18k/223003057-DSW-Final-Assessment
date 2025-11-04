@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 
 const ForgotPasswordScreen = ({ navigation }) => {
     const [email, setEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [emailSent, setEmailSent] = useState(false);
     const { resetPassword } = useAuth();
-
-    const validateEmail = (email) => {
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    };
 
     const handleResetPassword = async () => {
         if (!email) {
@@ -18,17 +16,13 @@ const ForgotPasswordScreen = ({ navigation }) => {
             return;
         }
 
-        if (!validateEmail(email)) {
-            Alert.alert('Error', 'Please enter a valid email address');
-            return;
-        }
-
         setIsLoading(true);
         try {
             await resetPassword(email);
+            setEmailSent(true);
             Alert.alert(
-                'Success',
-                'Password reset email sent! Please check your inbox.',
+                'Email Sent',
+                'Password reset instructions have been sent to your email address.',
                 [{ text: 'OK', onPress: () => navigation.navigate('SignIn') }]
             );
         } catch (error) {
@@ -39,60 +33,54 @@ const ForgotPasswordScreen = ({ navigation }) => {
     };
 
     return (
-        <KeyboardAvoidingView
-            style={styles.container}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-            <View style={styles.header}>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => navigation.goBack()}
-                >
-                    <Ionicons name="arrow-back" size={24} color="#333" />
-                </TouchableOpacity>
-            </View>
+        <SafeAreaView style={styles.container}>
+            <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => navigation.goBack()}
+            >
+                <Ionicons name="arrow-back" size={24} color="#333" />
+            </TouchableOpacity>
 
             <View style={styles.content}>
-                <View style={styles.headerContainer}>
-                    <Text style={styles.title}>Forgot Password?</Text>
-                    <Text style={styles.subtitle}>
-                        Enter your email address and we'll send you a link to reset your password.
-                    </Text>
+                <Text style={styles.title}>Forgot Password?</Text>
+                <Text style={styles.subtitle}>
+                    Enter your email address and we'll send you instructions to reset your password.
+                </Text>
+
+                <View style={styles.inputContainer}>
+                    <Ionicons name="mail-outline" size={20} color="#666" />
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Email"
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                    />
                 </View>
 
-                <View style={styles.formContainer}>
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.inputLabel}>Email</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Enter your email"
-                            value={email}
-                            onChangeText={setEmail}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                        />
-                    </View>
-
-                    <TouchableOpacity
-                        style={[styles.resetButton, isLoading && styles.disabledButton]}
-                        onPress={handleResetPassword}
-                        disabled={isLoading}
-                    >
+                <TouchableOpacity
+                    style={styles.resetButton}
+                    onPress={handleResetPassword}
+                    disabled={isLoading || emailSent}
+                >
+                    {isLoading ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                    ) : (
                         <Text style={styles.resetButtonText}>
-                            {isLoading ? 'Sending...' : 'Reset Password'}
+                            {emailSent ? 'Email Sent' : 'Send Reset Email'}
                         </Text>
-                    </TouchableOpacity>
+                    )}
+                </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={styles.backToSignInButton}
-                        onPress={() => navigation.navigate('SignIn')}
-                    >
-                        <Text style={styles.backToSignInText}>Back to Sign In</Text>
-                    </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                    style={styles.backToSignIn}
+                    onPress={() => navigation.navigate('SignIn')}
+                >
+                    <Text style={styles.backToSignInText}>Back to Sign In</Text>
+                </TouchableOpacity>
             </View>
-        </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 };
 
@@ -101,83 +89,65 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#FFFFFF',
     },
-    header: {
-        paddingTop: 50,
-        paddingHorizontal: 20,
-        paddingBottom: 20,
-    },
     backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F5F5F5',
-        alignItems: 'center',
-        justifyContent: 'center',
+        position: 'absolute',
+        top: 60,
+        left: 20,
+        zIndex: 1,
+        padding: 10,
     },
     content: {
         flex: 1,
-        paddingHorizontal: 20,
-    },
-    headerContainer: {
-        alignItems: 'center',
-        marginBottom: 40,
+        paddingHorizontal: 40,
+        justifyContent: 'center',
     },
     title: {
-        fontSize: 28,
+        fontSize: 30,
         fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 16,
         color: '#333',
-        marginBottom: 15,
     },
     subtitle: {
         fontSize: 16,
-        color: '#666',
         textAlign: 'center',
+        color: '#666',
+        marginBottom: 40,
         lineHeight: 24,
     },
-    formContainer: {
-        flex: 1,
-    },
     inputContainer: {
-        marginBottom: 30,
-    },
-    inputLabel: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 8,
-    },
-    input: {
-        borderWidth: 1,
-        borderColor: '#E5E5E5',
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F5F5F5',
         borderRadius: 12,
         paddingHorizontal: 16,
-        paddingVertical: 15,
+        paddingVertical: 16,
+        marginBottom: 30,
+    },
+    input: {
+        flex: 1,
+        marginLeft: 12,
         fontSize: 16,
-        backgroundColor: '#F9F9F9',
     },
     resetButton: {
         backgroundColor: '#007AFF',
         borderRadius: 12,
         paddingVertical: 16,
         alignItems: 'center',
-        marginBottom: 20,
-    },
-    disabledButton: {
-        backgroundColor: '#B0B0B0',
+        marginBottom: 30,
     },
     resetButtonText: {
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: '600',
     },
-    backToSignInButton: {
+    backToSignIn: {
         alignItems: 'center',
-        paddingVertical: 15,
     },
     backToSignInText: {
-        fontSize: 16,
         color: '#007AFF',
-        fontWeight: '500',
+        fontSize: 14,
+        fontWeight: '600',
     },
 });
 

@@ -1,158 +1,132 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../context/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
 
-const ReviewsScreen = ({ navigation, route }) => {
+const ReviewsScreen = ({ route, navigation }) => {
     const { hotel } = route.params;
-    const { user } = useAuth();
-    const [reviews, setReviews] = useState([]);
-    const [showAddReviewModal, setShowAddReviewModal] = useState(false);
-    const [reviewText, setReviewText] = useState('');
-    const [reviewRating, setReviewRating] = useState(5);
-    const [userHasReviewed, setUserHasReviewed] = useState(false);
+    const [newReview, setNewReview] = useState('');
+    const [newRating, setNewRating] = useState(0);
+    const [showAddReview, setShowAddReview] = useState(false);
 
     const sampleReviews = [
         {
             id: 1,
-            userName: 'John Smith',
+            userName: 'John Doe',
             rating: 5,
-            text: 'Amazing hotel with excellent service! The staff was very friendly and the rooms were clean and comfortable.',
-            date: '2024-10-15',
-            userId: 'user1'
+            comment: 'Amazing hotel with great service and beautiful views. Highly recommended!',
+            date: '2024-01-15',
+            verified: true
         },
         {
             id: 2,
-            userName: 'Sarah Johnson',
+            userName: 'Sarah Smith',
             rating: 4,
-            text: 'Great location and comfortable rooms. The breakfast was delicious and the view from my room was spectacular.',
-            date: '2024-10-10',
-            userId: 'user2'
+            comment: 'Great location and comfortable rooms. The staff was very helpful throughout our stay.',
+            date: '2024-01-10',
+            verified: true
         },
         {
             id: 3,
-            userName: 'Mike Wilson',
+            userName: 'Mike Johnson',
+            rating: 5,
+            comment: 'Perfect for a romantic getaway. The amenities were top-notch and the food was excellent.',
+            date: '2024-01-05',
+            verified: false
+        },
+        {
+            id: 4,
+            userName: 'Emily Brown',
             rating: 4,
-            text: 'Good value for money. Clean rooms and helpful staff. Would definitely stay here again.',
-            date: '2024-10-05',
-            userId: 'user3'
+            comment: 'Good value for money. Clean rooms and friendly staff. Would stay again.',
+            date: '2023-12-28',
+            verified: true
+        },
+        {
+            id: 5,
+            userName: 'David Wilson',
+            rating: 3,
+            comment: 'Decent hotel but could use some updates. The location is convenient though.',
+            date: '2023-12-20',
+            verified: true
         }
     ];
 
-    useEffect(() => {
-        setReviews(sampleReviews);
-        checkUserReview();
-    }, []);
-
-    const checkUserReview = () => {
-        if (user) {
-            const userReview = sampleReviews.find(review => review.userId === user.uid);
-            setUserHasReviewed(!!userReview);
+    const handleSubmitReview = () => {
+        if (newRating === 0) {
+            Alert.alert('Error', 'Please select a rating');
+            return;
         }
-    };
-
-    const handleAddReview = () => {
-        if (!user) {
-            Alert.alert('Sign In Required', 'Please sign in to add a review.');
+        if (!newReview.trim()) {
+            Alert.alert('Error', 'Please write a review');
             return;
         }
 
-        if (userHasReviewed) {
-            Alert.alert('Review Exists', 'You have already reviewed this hotel.');
-            return;
-        }
-
-        setShowAddReviewModal(true);
+        Alert.alert('Success', 'Your review has been submitted!', [
+            { text: 'OK', onPress: () => {
+                    setNewReview('');
+                    setNewRating(0);
+                    setShowAddReview(false);
+                }}
+        ]);
     };
 
-    const submitReview = () => {
-        if (!reviewText.trim()) {
-            Alert.alert('Error', 'Please enter your review.');
-            return;
-        }
-
-        const newReview = {
-            id: Date.now(),
-            userName: user.displayName,
-            rating: reviewRating,
-            text: reviewText.trim(),
-            date: new Date().toISOString().split('T')[0],
-            userId: user.uid
-        };
-
-        setReviews([newReview, ...reviews]);
-        setUserHasReviewed(true);
-        setShowAddReviewModal(false);
-        setReviewText('');
-        setReviewRating(5);
-        Alert.alert('Success', 'Thank you for your review!');
-    };
-
-    const renderStars = (rating) => {
-        return Array.from({ length: 5 }, (_, index) => (
-            <Ionicons
-                key={index}
-                name={index < rating ? 'star' : 'star-outline'}
-                size={16}
-                color="#FFD700"
-            />
-        ));
-    };
-
-    const renderRatingStars = (rating, onPress) => {
-        return Array.from({ length: 5 }, (_, index) => (
-            <TouchableOpacity key={index} onPress={() => onPress(index + 1)}>
-                <Ionicons
-                    name={index < rating ? 'star' : 'star-outline'}
-                    size={32}
-                    color="#FFD700"
-                />
-            </TouchableOpacity>
-        ));
-    };
-
-    const calculateAverageRating = () => {
-        if (reviews.length === 0) return 0;
-        const sum = reviews.reduce((acc, review) => acc + review.rating, 0);
-        return (sum / reviews.length).toFixed(1);
-    };
-
-    const getRatingDistribution = () => {
-        const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-        reviews.forEach(review => {
-            distribution[review.rating]++;
-        });
-        return distribution;
-    };
-
-    const renderReviewItem = ({ item }) => (
-        <View style={styles.reviewItem}>
-            <View style={styles.reviewHeader}>
-                <View style={styles.reviewerInfo}>
-                    <Text style={styles.reviewerName}>{item.userName}</Text>
-                    <Text style={styles.reviewDate}>{item.date}</Text>
-                </View>
-                <View style={styles.reviewStars}>
-                    {renderStars(item.rating)}
-                </View>
-            </View>
-            <Text style={styles.reviewText}>{item.text}</Text>
-        </View>
-    );
-
-    const renderRatingBar = (stars, count, total) => {
-        const percentage = total > 0 ? (count / total) * 100 : 0;
+    const renderStars = (rating, size = 16, interactive = false, onPress = null) => {
         return (
-            <View style={styles.ratingBarContainer}>
-                <Text style={styles.ratingBarLabel}>{stars}</Text>
-                <View style={styles.ratingBar}>
-                    <View style={[styles.ratingBarFill, { width: `${percentage}%` }]} />
-                </View>
-                <Text style={styles.ratingBarCount}>{count}</Text>
+            <View style={styles.starsContainer}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                        key={star}
+                        onPress={() => interactive && onPress && onPress(star)}
+                        disabled={!interactive}
+                    >
+                        <Ionicons
+                            name={star <= rating ? "star" : "star-outline"}
+                            size={size}
+                            color={star <= rating ? "#FFD700" : "#DDD"}
+                        />
+                    </TouchableOpacity>
+                ))}
             </View>
         );
     };
+
+    const renderReview = (review) => (
+        <View key={review.id} style={styles.reviewCard}>
+            <View style={styles.reviewHeader}>
+                <View style={styles.reviewerInfo}>
+                    <View style={styles.reviewerAvatar}>
+                        <Text style={styles.reviewerInitial}>
+                            {review.userName.charAt(0)}
+                        </Text>
+                    </View>
+                    <View style={styles.reviewerDetails}>
+                        <View style={styles.reviewerNameContainer}>
+                            <Text style={styles.reviewerName}>{review.userName}</Text>
+                            {review.verified && (
+                                <Ionicons name="checkmark-circle" size={14} color="#28A745" />
+                            )}
+                        </View>
+                        <Text style={styles.reviewDate}>{review.date}</Text>
+                    </View>
+                </View>
+                {renderStars(review.rating)}
+            </View>
+            <Text style={styles.reviewComment}>{review.comment}</Text>
+            <View style={styles.reviewActions}>
+                <TouchableOpacity style={styles.helpfulButton}>
+                    <Ionicons name="thumbs-up-outline" size={16} color="#666" />
+                    <Text style={styles.helpfulText}>Helpful</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.replyButton}>
+                    <Ionicons name="chatbubble-outline" size={16} color="#666" />
+                    <Text style={styles.replyText}>Reply</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+
+    const averageRating = sampleReviews.reduce((sum, review) => sum + review.rating, 0) / sampleReviews.length;
 
     return (
         <SafeAreaView style={styles.container}>
@@ -164,87 +138,90 @@ const ReviewsScreen = ({ navigation, route }) => {
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Reviews</Text>
-                <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={handleAddReview}
-                >
-                    <Ionicons name="add" size={24} color="#007AFF" />
-                </TouchableOpacity>
+                <View style={{ width: 24 }} />
             </View>
 
-            <View style={styles.summarySection}>
-                <View style={styles.ratingOverview}>
-                    <Text style={styles.averageRating}>{calculateAverageRating()}</Text>
-                    <View style={styles.averageStars}>
-                        {renderStars(Math.round(parseFloat(calculateAverageRating())))}
-                    </View>
-                    <Text style={styles.reviewCount}>{reviews.length} reviews</Text>
-                </View>
-
-                <View style={styles.ratingDistribution}>
-                    {Object.entries(getRatingDistribution())
-                        .reverse()
-                        .map(([stars, count]) => (
-                            <View key={stars}>
-                                {renderRatingBar(stars, count, reviews.length)}
-                            </View>
-                        ))}
-                </View>
-            </View>
-
-            <FlatList
-                data={reviews}
-                renderItem={renderReviewItem}
-                keyExtractor={item => item.id.toString()}
-                contentContainerStyle={styles.reviewsList}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <Ionicons name="chatbubble-outline" size={64} color="#CCC" />
-                        <Text style={styles.emptyText}>No reviews yet</Text>
-                        <Text style={styles.emptySubtext}>Be the first to review this hotel!</Text>
-                    </View>
-                }
-            />
-
-            <Modal
-                visible={showAddReviewModal}
-                animationType="slide"
-                presentationStyle="pageSheet"
-                onRequestClose={() => setShowAddReviewModal(false)}
-            >
-                <SafeAreaView style={styles.modalContainer}>
-                    <View style={styles.modalHeader}>
-                        <TouchableOpacity onPress={() => setShowAddReviewModal(false)}>
-                            <Text style={styles.cancelText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.modalTitle}>Add Review</Text>
-                        <TouchableOpacity onPress={submitReview}>
-                            <Text style={styles.submitText}>Submit</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.modalContent}>
-                        <Text style={styles.hotelName}>{hotel.name}</Text>
-
-                        <Text style={styles.ratingLabel}>Rating</Text>
-                        <View style={styles.ratingSelector}>
-                            {renderRatingStars(reviewRating, setReviewRating)}
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+                <View style={styles.summaryContainer}>
+                    <Text style={styles.hotelName}>{hotel.name}</Text>
+                    <View style={styles.ratingOverview}>
+                        <Text style={styles.averageRating}>{averageRating.toFixed(1)}</Text>
+                        <View style={styles.ratingDetails}>
+                            {renderStars(Math.round(averageRating), 20)}
+                            <Text style={styles.reviewCount}>
+                                Based on {sampleReviews.length} reviews
+                            </Text>
                         </View>
+                    </View>
 
-                        <Text style={styles.reviewLabel}>Your Review</Text>
+                    <View style={styles.ratingBreakdown}>
+                        {[5, 4, 3, 2, 1].map((rating) => {
+                            const count = sampleReviews.filter(r => r.rating === rating).length;
+                            const percentage = (count / sampleReviews.length) * 100;
+                            return (
+                                <View key={rating} style={styles.ratingRow}>
+                                    <Text style={styles.ratingLabel}>{rating}</Text>
+                                    <Ionicons name="star" size={12} color="#FFD700" />
+                                    <View style={styles.ratingBar}>
+                                        <View
+                                            style={[styles.ratingFill, { width: `${percentage}%` }]}
+                                        />
+                                    </View>
+                                    <Text style={styles.ratingCount}>{count}</Text>
+                                </View>
+                            );
+                        })}
+                    </View>
+                </View>
+
+                <View style={styles.addReviewContainer}>
+                    <TouchableOpacity
+                        style={styles.addReviewButton}
+                        onPress={() => setShowAddReview(!showAddReview)}
+                    >
+                        <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
+                        <Text style={styles.addReviewText}>Write a Review</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {showAddReview && (
+                    <View style={styles.addReviewForm}>
+                        <Text style={styles.formTitle}>Share your experience</Text>
+                        <View style={styles.ratingSelector}>
+                            <Text style={styles.ratingLabel}>Rating:</Text>
+                            {renderStars(newRating, 24, true, setNewRating)}
+                        </View>
                         <TextInput
                             style={styles.reviewInput}
+                            placeholder="Write your review here..."
+                            value={newReview}
+                            onChangeText={setNewReview}
                             multiline
-                            numberOfLines={6}
-                            placeholder="Share your experience at this hotel..."
-                            value={reviewText}
-                            onChangeText={setReviewText}
+                            numberOfLines={4}
                             textAlignVertical="top"
                         />
+                        <View style={styles.formButtons}>
+                            <TouchableOpacity
+                                style={styles.cancelButton}
+                                onPress={() => setShowAddReview(false)}
+                            >
+                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.submitButton}
+                                onPress={handleSubmitReview}
+                            >
+                                <Text style={styles.submitButtonText}>Submit Review</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                </SafeAreaView>
-            </Modal>
+                )}
+
+                <View style={styles.reviewsContainer}>
+                    <Text style={styles.reviewsTitle}>All Reviews</Text>
+                    {sampleReviews.map(renderReview)}
+                </View>
+            </ScrollView>
         </SafeAreaView>
     );
 };
@@ -256,6 +233,7 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 20,
         paddingVertical: 16,
@@ -263,91 +241,171 @@ const styles = StyleSheet.create({
         borderBottomColor: '#E5E5E5',
     },
     backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F5F5F5',
-        alignItems: 'center',
-        justifyContent: 'center',
+        padding: 4,
     },
     headerTitle: {
-        flex: 1,
         fontSize: 18,
         fontWeight: '600',
-        textAlign: 'center',
+        color: '#333',
     },
-    addButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#E3F2FD',
-        alignItems: 'center',
-        justifyContent: 'center',
+    scrollView: {
+        flex: 1,
     },
-    summarySection: {
-        flexDirection: 'row',
+    summaryContainer: {
         padding: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
+        backgroundColor: '#F8F9FA',
+    },
+    hotelName: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 16,
     },
     ratingOverview: {
-        flex: 1,
+        flexDirection: 'row',
         alignItems: 'center',
+        marginBottom: 20,
     },
     averageRating: {
         fontSize: 48,
         fontWeight: 'bold',
         color: '#333',
-        marginBottom: 8,
+        marginRight: 20,
     },
-    averageStars: {
+    ratingDetails: {
+        flex: 1,
+    },
+    starsContainer: {
         flexDirection: 'row',
+        gap: 4,
         marginBottom: 8,
     },
     reviewCount: {
         fontSize: 14,
         color: '#666',
     },
-    ratingDistribution: {
-        flex: 1,
-        paddingLeft: 20,
+    ratingBreakdown: {
+        gap: 8,
     },
-    ratingBarContainer: {
+    ratingRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 8,
+        gap: 8,
     },
-    ratingBarLabel: {
-        width: 20,
+    ratingLabel: {
         fontSize: 14,
-        color: '#666',
+        color: '#333',
+        width: 12,
     },
     ratingBar: {
         flex: 1,
         height: 8,
         backgroundColor: '#E5E5E5',
         borderRadius: 4,
-        marginHorizontal: 12,
+        overflow: 'hidden',
     },
-    ratingBarFill: {
+    ratingFill: {
         height: '100%',
         backgroundColor: '#FFD700',
-        borderRadius: 4,
     },
-    ratingBarCount: {
-        width: 30,
-        fontSize: 14,
+    ratingCount: {
+        fontSize: 12,
         color: '#666',
+        width: 20,
         textAlign: 'right',
     },
-    reviewsList: {
+    addReviewContainer: {
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    addReviewButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        borderWidth: 1,
+        borderColor: '#007AFF',
+        borderRadius: 8,
+        gap: 8,
+    },
+    addReviewText: {
+        fontSize: 16,
+        color: '#007AFF',
+        fontWeight: '500',
+    },
+    addReviewForm: {
+        padding: 20,
+        backgroundColor: '#F8F9FA',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E5E5',
+    },
+    formTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 16,
+    },
+    ratingSelector: {
+        marginBottom: 20,
+    },
+    reviewInput: {
+        backgroundColor: 'white',
+        borderWidth: 1,
+        borderColor: '#E5E5E5',
+        borderRadius: 8,
+        padding: 16,
+        fontSize: 16,
+        height: 100,
+        marginBottom: 20,
+    },
+    formButtons: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    cancelButton: {
+        flex: 1,
+        paddingVertical: 12,
+        borderWidth: 1,
+        borderColor: '#CCC',
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    cancelButtonText: {
+        fontSize: 16,
+        color: '#666',
+    },
+    submitButton: {
+        flex: 1,
+        backgroundColor: '#007AFF',
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    submitButtonText: {
+        fontSize: 16,
+        color: 'white',
+        fontWeight: '600',
+    },
+    reviewsContainer: {
         padding: 20,
     },
-    reviewItem: {
-        backgroundColor: '#F9F9F9',
+    reviewsTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 16,
+    },
+    reviewCard: {
+        backgroundColor: 'white',
         borderRadius: 12,
         padding: 16,
         marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
     },
     reviewHeader: {
         flexDirection: 'row',
@@ -356,103 +414,71 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     reviewerInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
         flex: 1,
     },
-    reviewerName: {
+    reviewerAvatar: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#007AFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    reviewerInitial: {
+        color: 'white',
         fontSize: 16,
+        fontWeight: 'bold',
+    },
+    reviewerDetails: {
+        flex: 1,
+    },
+    reviewerNameContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 2,
+    },
+    reviewerName: {
+        fontSize: 14,
         fontWeight: '600',
         color: '#333',
-        marginBottom: 4,
     },
     reviewDate: {
         fontSize: 12,
-        color: '#999',
-    },
-    reviewStars: {
-        flexDirection: 'row',
-    },
-    reviewText: {
-        fontSize: 14,
         color: '#666',
-        lineHeight: 20,
     },
-    emptyContainer: {
-        alignItems: 'center',
-        paddingVertical: 60,
-    },
-    emptyText: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#666',
-        marginTop: 16,
-    },
-    emptySubtext: {
+    reviewComment: {
         fontSize: 14,
-        color: '#999',
-        marginTop: 8,
-    },
-    modalContainer: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
-    },
-    cancelText: {
-        fontSize: 16,
-        color: '#007AFF',
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-    },
-    submitText: {
-        fontSize: 16,
-        color: '#007AFF',
-        fontWeight: '600',
-    },
-    modalContent: {
-        flex: 1,
-        padding: 20,
-    },
-    hotelName: {
-        fontSize: 20,
-        fontWeight: 'bold',
         color: '#333',
-        marginBottom: 24,
-        textAlign: 'center',
+        lineHeight: 20,
+        marginBottom: 12,
     },
-    ratingLabel: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 16,
-    },
-    ratingSelector: {
+    reviewActions: {
         flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 8,
-        marginBottom: 32,
+        gap: 20,
     },
-    reviewLabel: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 16,
+    helpfulButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
     },
-    reviewInput: {
-        borderWidth: 1,
-        borderColor: '#E5E5E5',
-        borderRadius: 12,
-        padding: 16,
-        fontSize: 16,
-        minHeight: 120,
-        backgroundColor: '#F9F9F9',
+    helpfulText: {
+        fontSize: 12,
+        color: '#666',
+    },
+    replyButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    replyText: {
+        fontSize: 12,
+        color: '#666',
     },
 });
 
 export default ReviewsScreen;
+

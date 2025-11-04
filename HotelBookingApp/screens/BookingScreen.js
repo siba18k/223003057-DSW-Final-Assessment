@@ -1,49 +1,40 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ref, push } from 'firebase/database';
+import { database } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { db } from '../config/firebase';
 
-const BookingScreen = ({ navigation, route }) => {
+const BookingScreen = ({ route, navigation }) => {
     const { hotel } = route.params;
     const { user } = useAuth();
     const [checkInDate, setCheckInDate] = useState(new Date());
     const [checkOutDate, setCheckOutDate] = useState(new Date(Date.now() + 24 * 60 * 60 * 1000));
-    const [numberOfRooms, setNumberOfRooms] = useState(1);
-    const [showCheckInPicker, setShowCheckInPicker] = useState(false);
-    const [showCheckOutPicker, setShowCheckOutPicker] = useState(false);
+    const [guests, setGuests] = useState(1);
+    const [rooms, setRooms] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
 
-    const calculateTotalCost = () => {
-        const timeDifference = checkOutDate.getTime() - checkInDate.getTime();
-        const daysDifference = Math.ceil(timeDifference / (1000 * 3600 * 24));
-        return daysDifference * hotel.price * numberOfRooms;
+    const calculateNights = () => {
+        const timeDiff = checkOutDate.getTime() - checkInDate.getTime();
+        return Math.ceil(timeDiff / (1000 * 3600 * 24));
     };
 
-    const calculateDays = () => {
-        const timeDifference = checkOutDate.getTime() - checkInDate.getTime();
-        return Math.ceil(timeDifference / (1000 * 3600 * 24));
-    };
-
-    const validateBooking = () => {
-        if (checkOutDate <= checkInDate) {
-            Alert.alert('Invalid Dates', 'Check-out date must be after check-in date');
-            return false;
-        }
-
-        if (checkInDate < new Date().setHours(0, 0, 0, 0)) {
-            Alert.alert('Invalid Date', 'Check-in date cannot be in the past');
-            return false;
-        }
-
-        return true;
+    const calculateTotal = () => {
+        const nights = calculateNights();
+        const roomTotal = hotel.price * rooms * nights;
+        const tax = roomTotal * 0.1;
+        return {
+            subtotal: roomTotal,
+            tax: tax,
+            total: roomTotal + tax
+        };
     };
 
     const handleBooking = async () => {
-        if (!validateBooking()) return;
+        if (checkInDate >= checkOutDate) {
+            Alert.alert('Error', 'Check-out date must be after check-in date');
+            return;
+        }
 
         setIsLoading(true);
         try {
@@ -51,52 +42,60 @@ const BookingScreen = ({ navigation, route }) => {
                 id: Date.now().toString(),
                 hotelId: hotel.id,
                 hotelName: hotel.name,
-                hotelLocation: hotel.location,
+                hotelImage: hotel.image,
                 checkInDate: checkInDate.toISOString(),
                 checkOutDate: checkOutDate.toISOString(),
-                numberOfRooms,
-                totalCost: calculateTotalCost(),
-                bookingDate: new Date().toISOString(),
-                status: 'confirmed'
+                guests,
+                rooms,
+                nights: calculateNights(),
+                totalAmount: calculateTotal().total,
+                status: 'confirmed',
+                bookingDate: new Date().toISOString()
             };
 
-            await updateDoc(doc(db, 'users', user.uid), {
-                bookings: arrayUnion(booking)
-            });
+            // Save booking to separate hotelBookings path to avoid conflicts
+            const bookingsRef = ref(database, `hotelBookings/${user.uid}`);
+            await push(bookingsRef, booking);
 
             navigation.navigate('BookingSuccess', { booking, hotel });
         } catch (error) {
-            Alert.alert('Booking Error', 'Failed to create booking. Please try again.');
+            Alert.alert('Booking Failed', 'Something went wrong. Please try again.');
+            console.error('Booking error:', error);
         } finally {
             setIsLoading(false);
         }
     };
 
-    const onCheckInDateChange = (event, selectedDate) => {
-        setShowCheckInPicker(false);
-        if (selectedDate) {
-            setCheckInDate(selectedDate);
-            if (selectedDate >= checkOutDate) {
-                setCheckOutDate(new Date(selectedDate.getTime() + 24 * 60 * 60 * 1000));
-            }
-        }
-    };
+    const handleDateChange = (dateString, isCheckIn) => {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return;
 
-    const onCheckOutDateChange = (event, selectedDate) => {
-        setShowCheckOutPicker(false);
-        if (selectedDate) {
-            setCheckOutDate(selectedDate);
+        if (isCheckIn) {
+            setCheckInDate(date);
+            if (date >= checkOutDate) {
+                setCheckOutDate(new Date(date.getTime() + 24 * 60 * 60 * 1000));
+            }
+        } else {
+            if (date > checkInDate) {
+                setCheckOutDate(date);
+            }
         }
     };
 
     const formatDate = (date) => {
         return date.toLocaleDateString('en-US', {
             weekday: 'short',
-            year: 'numeric',
             month: 'short',
-            day: 'numeric'
+            day: 'numeric',
+            year: 'numeric'
         });
     };
+
+    const formatDateForInput = (date) => {
+        return date.toISOString().split('T')[0];
+    };
+
+    const pricing = calculateTotal();
 
     return (
         <SafeAreaView style={styles.container}>
@@ -105,123 +104,130 @@ const BookingScreen = ({ navigation, route }) => {
                     style={styles.backButton}
                     onPress={() => navigation.goBack()}
                 >
-                    <Ionicons name="arrow-back" size={24} color="#333" />
+                    <Text style={styles.backButtonText}>← Back</Text>
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Book Your Stay</Text>
-                <View style={styles.placeholder} />
+                <Text style={styles.headerTitle}>Book Hotel</Text>
+                <View style={{ width: 50 }} />
             </View>
 
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                <View style={styles.hotelSummary}>
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+                <View style={styles.hotelInfo}>
                     <Text style={styles.hotelName}>{hotel.name}</Text>
-                    <Text style={styles.hotelLocation}>{hotel.location}</Text>
+                    <View style={styles.locationContainer}>
+                        <Text style={styles.location}>📍 {hotel.location}</Text>
+                    </View>
                 </View>
 
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Check-in Date</Text>
-                    <TouchableOpacity
-                        style={styles.dateButton}
-                        onPress={() => setShowCheckInPicker(true)}
-                    >
-                        <Ionicons name="calendar-outline" size={20} color="#007AFF" />
-                        <Text style={styles.dateText}>{formatDate(checkInDate)}</Text>
-                        <Ionicons name="chevron-down-outline" size={20} color="#666" />
-                    </TouchableOpacity>
+                    <Text style={styles.sectionTitle}>Dates</Text>
+                    <View style={styles.dateContainer}>
+                        <View style={styles.dateInputContainer}>
+                            <Text style={styles.dateLabel}>Check-in</Text>
+                            <TextInput
+                                style={styles.dateInput}
+                                value={formatDateForInput(checkInDate)}
+                                onChangeText={(text) => handleDateChange(text, true)}
+                                placeholder="YYYY-MM-DD"
+                            />
+                            <Text style={styles.dateDisplay}>{formatDate(checkInDate)}</Text>
+                        </View>
+                        <View style={styles.dateSeparator}>
+                            <Text style={styles.arrowText}>→</Text>
+                        </View>
+                        <View style={styles.dateInputContainer}>
+                            <Text style={styles.dateLabel}>Check-out</Text>
+                            <TextInput
+                                style={styles.dateInput}
+                                value={formatDateForInput(checkOutDate)}
+                                onChangeText={(text) => handleDateChange(text, false)}
+                                placeholder="YYYY-MM-DD"
+                            />
+                            <Text style={styles.dateDisplay}>{formatDate(checkOutDate)}</Text>
+                        </View>
+                    </View>
+                    <Text style={styles.nightsText}>{calculateNights()} nights</Text>
                 </View>
 
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Check-out Date</Text>
-                    <TouchableOpacity
-                        style={styles.dateButton}
-                        onPress={() => setShowCheckOutPicker(true)}
-                    >
-                        <Ionicons name="calendar-outline" size={20} color="#007AFF" />
-                        <Text style={styles.dateText}>{formatDate(checkOutDate)}</Text>
-                        <Ionicons name="chevron-down-outline" size={20} color="#666" />
-                    </TouchableOpacity>
+                    <Text style={styles.sectionTitle}>Guests & Rooms</Text>
+                    <View style={styles.counterContainer}>
+                        <View style={styles.counterItem}>
+                            <Text style={styles.counterLabel}>Guests</Text>
+                            <View style={styles.counter}>
+                                <TouchableOpacity
+                                    style={styles.counterButton}
+                                    onPress={() => setGuests(Math.max(1, guests - 1))}
+                                >
+                                    <Text style={styles.counterButtonText}>-</Text>
+                                </TouchableOpacity>
+                                <Text style={styles.counterValue}>{guests}</Text>
+                                <TouchableOpacity
+                                    style={styles.counterButton}
+                                    onPress={() => setGuests(guests + 1)}
+                                >
+                                    <Text style={styles.counterButtonText}>+</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                        <View style={styles.counterItem}>
+                            <Text style={styles.counterLabel}>Rooms</Text>
+                            <View style={styles.counter}>
+                                <TouchableOpacity
+                                    style={styles.counterButton}
+                                    onPress={() => setRooms(Math.max(1, rooms - 1))}
+                                >
+                                    <Text style={styles.counterButtonText}>-</Text>
+                                </TouchableOpacity>
+                                <Text style={styles.counterValue}>{rooms}</Text>
+                                <TouchableOpacity
+                                    style={styles.counterButton}
+                                    onPress={() => setRooms(rooms + 1)}
+                                >
+                                    <Text style={styles.counterButtonText}>+</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
                 </View>
 
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Number of Rooms</Text>
-                    <View style={styles.roomSelector}>
-                        <TouchableOpacity
-                            style={styles.roomButton}
-                            onPress={() => setNumberOfRooms(Math.max(1, numberOfRooms - 1))}
-                            disabled={numberOfRooms <= 1}
-                        >
-                            <Ionicons name="remove" size={20} color={numberOfRooms <= 1 ? "#CCC" : "#007AFF"} />
-                        </TouchableOpacity>
-                        <Text style={styles.roomCount}>{numberOfRooms}</Text>
-                        <TouchableOpacity
-                            style={styles.roomButton}
-                            onPress={() => setNumberOfRooms(numberOfRooms + 1)}
-                        >
-                            <Ionicons name="add" size={20} color="#007AFF" />
-                        </TouchableOpacity>
+                    <Text style={styles.sectionTitle}>Pricing Details</Text>
+                    <View style={styles.pricingContainer}>
+                        <View style={styles.pricingRow}>
+                            <Text style={styles.pricingLabel}>
+                                ${hotel.price} × {rooms} room{rooms > 1 ? 's' : ''} × {calculateNights()} night{calculateNights() > 1 ? 's' : ''}
+                            </Text>
+                            <Text style={styles.pricingValue}>${pricing.subtotal.toFixed(2)}</Text>
+                        </View>
+                        <View style={styles.pricingRow}>
+                            <Text style={styles.pricingLabel}>Taxes & fees</Text>
+                            <Text style={styles.pricingValue}>${pricing.tax.toFixed(2)}</Text>
+                        </View>
+                        <View style={[styles.pricingRow, styles.totalRow]}>
+                            <Text style={styles.totalLabel}>Total</Text>
+                            <Text style={styles.totalValue}>${pricing.total.toFixed(2)}</Text>
+                        </View>
                     </View>
                 </View>
+            </ScrollView>
 
-                <View style={styles.summarySection}>
-                    <Text style={styles.summaryTitle}>Booking Summary</Text>
-
-                    <View style={styles.summaryRow}>
-                        <Text style={styles.summaryLabel}>Dates</Text>
-                        <Text style={styles.summaryValue}>
-                            {formatDate(checkInDate)} - {formatDate(checkOutDate)}
-                        </Text>
-                    </View>
-
-                    <View style={styles.summaryRow}>
-                        <Text style={styles.summaryLabel}>Nights</Text>
-                        <Text style={styles.summaryValue}>{calculateDays()}</Text>
-                    </View>
-
-                    <View style={styles.summaryRow}>
-                        <Text style={styles.summaryLabel}>Rooms</Text>
-                        <Text style={styles.summaryValue}>{numberOfRooms}</Text>
-                    </View>
-
-                    <View style={styles.summaryRow}>
-                        <Text style={styles.summaryLabel}>Price per night</Text>
-                        <Text style={styles.summaryValue}>${hotel.price}</Text>
-                    </View>
-
-                    <View style={[styles.summaryRow, styles.totalRow]}>
-                        <Text style={styles.totalLabel}>Total Cost</Text>
-                        <Text style={styles.totalValue}>${calculateTotalCost()}</Text>
-                    </View>
+            <View style={styles.bottomContainer}>
+                <View style={styles.totalContainer}>
+                    <Text style={styles.bottomTotalLabel}>Total</Text>
+                    <Text style={styles.bottomTotalValue}>${pricing.total.toFixed(2)}</Text>
                 </View>
-
                 <TouchableOpacity
-                    style={[styles.bookButton, isLoading && styles.disabledButton]}
+                    style={styles.bookButton}
                     onPress={handleBooking}
                     disabled={isLoading}
                 >
-                    <Text style={styles.bookButtonText}>
-                        {isLoading ? 'Processing...' : 'Confirm Booking'}
-                    </Text>
+                    {isLoading ? (
+                        <ActivityIndicator color="white" />
+                    ) : (
+                        <Text style={styles.bookButtonText}>Confirm Booking</Text>
+                    )}
                 </TouchableOpacity>
-            </ScrollView>
-
-            {showCheckInPicker && (
-                <DateTimePicker
-                    value={checkInDate}
-                    mode="date"
-                    display="default"
-                    onChange={onCheckInDateChange}
-                    minimumDate={new Date()}
-                />
-            )}
-
-            {showCheckOutPicker && (
-                <DateTimePicker
-                    value={checkOutDate}
-                    mode="date"
-                    display="default"
-                    onChange={onCheckOutDateChange}
-                    minimumDate={new Date(checkInDate.getTime() + 24 * 60 * 60 * 1000)}
-                />
-            )}
+            </View>
         </SafeAreaView>
     );
 };
@@ -233,6 +239,7 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 20,
         paddingVertical: 16,
@@ -240,150 +247,197 @@ const styles = StyleSheet.create({
         borderBottomColor: '#E5E5E5',
     },
     backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F5F5F5',
-        alignItems: 'center',
-        justifyContent: 'center',
+        padding: 4,
+    },
+    backButtonText: {
+        fontSize: 16,
+        color: '#007AFF',
     },
     headerTitle: {
-        flex: 1,
         fontSize: 18,
         fontWeight: '600',
-        textAlign: 'center',
+        color: '#333',
     },
-    placeholder: {
-        width: 40,
-    },
-    content: {
+    scrollView: {
         flex: 1,
-        padding: 20,
+        paddingHorizontal: 20,
     },
-    hotelSummary: {
-        backgroundColor: '#F9F9F9',
-        padding: 20,
-        borderRadius: 16,
-        marginBottom: 32,
+    hotelInfo: {
+        paddingVertical: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
     },
     hotelName: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: 'bold',
         color: '#333',
         marginBottom: 4,
     },
-    hotelLocation: {
+    locationContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    location: {
         fontSize: 14,
         color: '#666',
     },
     section: {
-        marginBottom: 24,
+        paddingVertical: 24,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
     },
     sectionTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 12,
-    },
-    dateButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#F9F9F9',
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#E5E5E5',
-    },
-    dateText: {
-        flex: 1,
-        marginLeft: 12,
-        fontSize: 16,
-        color: '#333',
-    },
-    roomSelector: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#F9F9F9',
-        padding: 20,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#E5E5E5',
-    },
-    roomButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    roomCount: {
-        marginHorizontal: 30,
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    summarySection: {
-        backgroundColor: '#F9F9F9',
-        padding: 20,
-        borderRadius: 16,
-        marginBottom: 32,
-    },
-    summaryTitle: {
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '600',
         color: '#333',
         marginBottom: 16,
     },
-    summaryRow: {
+    dateContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    dateInputContainer: {
+        flex: 1,
+        backgroundColor: '#F5F5F5',
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    dateSeparator: {
+        paddingHorizontal: 16,
+    },
+    arrowText: {
+        fontSize: 20,
+        color: '#666',
+    },
+    dateLabel: {
+        fontSize: 12,
+        color: '#666',
+        marginBottom: 8,
+    },
+    dateInput: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#333',
+        textAlign: 'center',
+        marginBottom: 4,
+        padding: 4,
+        borderBottomWidth: 1,
+        borderBottomColor: '#DDD',
+        minWidth: 100,
+    },
+    dateDisplay: {
+        fontSize: 12,
+        color: '#666',
+        textAlign: 'center',
+    },
+    nightsText: {
+        fontSize: 14,
+        color: '#666',
+        textAlign: 'center',
+        marginTop: 8,
+    },
+    counterContainer: {
+        gap: 20,
+    },
+    counterItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 12,
     },
-    summaryLabel: {
+    counterLabel: {
+        fontSize: 16,
+        color: '#333',
+    },
+    counter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+    },
+    counterButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#F5F5F5',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    counterButtonText: {
+        fontSize: 18,
+        color: '#007AFF',
+        fontWeight: 'bold',
+    },
+    counterValue: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#333',
+        minWidth: 20,
+        textAlign: 'center',
+    },
+    pricingContainer: {
+        gap: 12,
+    },
+    pricingRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    pricingLabel: {
         fontSize: 14,
         color: '#666',
     },
-    summaryValue: {
+    pricingValue: {
         fontSize: 14,
-        color: '#333',
         fontWeight: '500',
+        color: '#333',
     },
     totalRow: {
-        marginTop: 12,
-        paddingTop: 16,
+        paddingTop: 12,
         borderTopWidth: 1,
         borderTopColor: '#E5E5E5',
     },
     totalLabel: {
         fontSize: 16,
-        fontWeight: 'bold',
+        fontWeight: '600',
         color: '#333',
     },
     totalValue: {
-        fontSize: 18,
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#007AFF',
+    },
+    bottomContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 20,
+        borderTopWidth: 1,
+        borderTopColor: '#E5E5E5',
+        backgroundColor: 'white',
+    },
+    totalContainer: {
+        flex: 1,
+    },
+    bottomTotalLabel: {
+        fontSize: 12,
+        color: '#666',
+        marginBottom: 2,
+    },
+    bottomTotalValue: {
+        fontSize: 20,
         fontWeight: 'bold',
         color: '#007AFF',
     },
     bookButton: {
         backgroundColor: '#007AFF',
+        paddingHorizontal: 32,
+        paddingVertical: 16,
         borderRadius: 12,
-        paddingVertical: 18,
-        alignItems: 'center',
-        marginBottom: 40,
-    },
-    disabledButton: {
-        backgroundColor: '#B0B0B0',
+        marginLeft: 20,
     },
     bookButtonText: {
-        color: '#FFFFFF',
+        color: 'white',
         fontSize: 16,
         fontWeight: '600',
     },

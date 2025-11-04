@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, TextInput, ActivityIndicator, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const OPENWEATHER_API_KEY = '57036209041bfaf8c8d1e00907885540';
 
 const ExploreScreen = ({ navigation }) => {
     const [hotels, setHotels] = useState([]);
@@ -41,6 +42,26 @@ const ExploreScreen = ({ navigation }) => {
             image: 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400',
             description: 'Cozy mountain lodge with scenic views',
             amenities: ['Fireplace', 'Skiing', 'Restaurant', 'WiFi']
+        },
+        {
+            id: 4,
+            name: 'City Center Hotel',
+            location: 'Los Angeles, CA',
+            rating: 4.3,
+            price: 200,
+            image: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=400',
+            description: 'Modern hotel in downtown LA',
+            amenities: ['WiFi', 'Business Center', 'Restaurant', 'Parking']
+        },
+        {
+            id: 5,
+            name: 'Beachside Inn',
+            location: 'San Diego, CA',
+            rating: 4.6,
+            price: 160,
+            image: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400',
+            description: 'Charming inn steps from the beach',
+            amenities: ['Beach Access', 'WiFi', 'Restaurant', 'Bike Rental']
         }
     ];
 
@@ -68,14 +89,14 @@ const ExploreScreen = ({ navigation }) => {
     const fetchWeather = async () => {
         try {
             const response = await fetch(
-                'https://api.openweathermap.org/data/2.5/weather?q=New York&appid=demo_key&units=metric'
+                `https://api.openweathermap.org/data/2.5/weather?q=New York&appid=${OPENWEATHER_API_KEY}&units=metric`
             );
             if (response.ok) {
                 const data = await response.json();
                 setWeather(data);
             }
         } catch (error) {
-            console.log('Weather API not available');
+            console.log('Weather API error:', error);
         }
     };
 
@@ -114,12 +135,12 @@ const ExploreScreen = ({ navigation }) => {
             <View style={styles.hotelInfo}>
                 <Text style={styles.hotelName}>{item.name}</Text>
                 <View style={styles.locationContainer}>
-                    <Ionicons name="location-outline" size={16} color="#666" />
+                    <Text style={styles.locationIcon}>📍</Text>
                     <Text style={styles.hotelLocation}>{item.location}</Text>
                 </View>
                 <View style={styles.ratingPriceContainer}>
                     <View style={styles.ratingContainer}>
-                        <Ionicons name="star" size={16} color="#FFD700" />
+                        <Text style={styles.starIcon}>⭐</Text>
                         <Text style={styles.rating}>{item.rating}</Text>
                     </View>
                     <Text style={styles.price}>${item.price}/night</Text>
@@ -154,7 +175,7 @@ const ExploreScreen = ({ navigation }) => {
                 <Text style={styles.title}>Explore Hotels</Text>
                 {weather && (
                     <View style={styles.weatherContainer}>
-                        <Ionicons name="sunny-outline" size={20} color="#007AFF" />
+                        <Text style={styles.weatherIcon}>☀️</Text>
                         <Text style={styles.weatherText}>{Math.round(weather.main?.temp)}°C</Text>
                     </View>
                 )}
@@ -162,7 +183,7 @@ const ExploreScreen = ({ navigation }) => {
 
             <View style={styles.searchContainer}>
                 <View style={styles.searchInputContainer}>
-                    <Ionicons name="search-outline" size={20} color="#666" />
+                    <Text style={styles.searchIcon}>🔍</Text>
                     <TextInput
                         style={styles.searchInput}
                         placeholder="Search hotels..."
@@ -189,7 +210,7 @@ const ExploreScreen = ({ navigation }) => {
                 showsVerticalScrollIndicator={false}
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
-                        <Ionicons name="search-outline" size={64} color="#CCC" />
+                        <Text style={styles.emptyIcon}>🔍</Text>
                         <Text style={styles.emptyText}>No hotels found</Text>
                         <Text style={styles.emptySubtext}>Try adjusting your search criteria</Text>
                     </View>
@@ -231,8 +252,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
+    weatherIcon: {
+        fontSize: 20,
+        marginRight: 8,
+    },
     weatherText: {
-        marginLeft: 8,
         fontSize: 16,
         color: '#007AFF',
         fontWeight: '600',
@@ -249,9 +273,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
     },
+    searchIcon: {
+        fontSize: 20,
+        marginRight: 12,
+    },
     searchInput: {
         flex: 1,
-        marginLeft: 12,
         fontSize: 16,
     },
     sortContainer: {
@@ -318,8 +345,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 12,
     },
+    locationIcon: {
+        fontSize: 16,
+        marginRight: 4,
+    },
     hotelLocation: {
-        marginLeft: 4,
         fontSize: 14,
         color: '#666',
     },
@@ -332,8 +362,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
+    starIcon: {
+        fontSize: 16,
+        marginRight: 4,
+    },
     rating: {
-        marginLeft: 4,
         fontSize: 14,
         fontWeight: '600',
         color: '#333',
@@ -346,6 +379,10 @@ const styles = StyleSheet.create({
     emptyContainer: {
         alignItems: 'center',
         paddingVertical: 60,
+    },
+    emptyIcon: {
+        fontSize: 64,
+        marginBottom: 16,
     },
     emptyText: {
         fontSize: 18,
