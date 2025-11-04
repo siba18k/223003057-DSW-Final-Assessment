@@ -16,7 +16,6 @@ import BookingScreen from './screens/BookingScreen';
 import BookingSuccessScreen from './screens/BookingSuccessScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import ReviewsScreen from './screens/ReviewsScreen';
-import './config/firebase';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();

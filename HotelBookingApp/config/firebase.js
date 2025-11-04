@@ -4,14 +4,14 @@ import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyBi9oqn6n_Gn8kJ9LkqWQp1_AwIvFdcUPk",
-    authDomain: "adbeam-v2.firebaseapp.com",
-    projectId: "adbeam-v2",
-    storageBucket: "adbeam-v2.appspot.com",
-    messagingSenderId: "123456789012",
-    appId: "1:123456789012:web:abcdef123456789012345"
+    apiKey: "AIzaSyDlXJXfvl_HV_Az8akLxpaOu-y-Oze_isA",
+    authDomain: "adbeam.firebaseapp.com",
+    databaseURL: "https://adbeam-default-rtdb.firebaseio.com",
+    projectId: "adbeam",
+    storageBucket: "adbeam.firebasestorage.app",
+    messagingSenderId: "413534942519",
+    appId: "1:413534942519:web:90096d118754fc71a896b2"
 };
-
 let app;
 let auth;
 
@@ -26,5 +26,5 @@ if (getApps().length === 0) {
 }
 
 export { auth };
-export const db = getFirestore(app);
+export  const db = getFirestore(app);
 export default app;
