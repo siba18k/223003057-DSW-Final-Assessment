@@ -1,71 +1,93 @@
 import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    Image,
-    Dimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
+import { useAuth } from '../context/AuthContext';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-const OnboardingScreen = ({ onComplete }) => {
-    const [currentScreen, setCurrentScreen] = useState(0);
+const onboardingData = [
+    {
+        id: 1,
+        title: 'Discover Amazing Hotels',
+        subtitle: 'Find the perfect place to stay for your next adventure',
+        image: require('../Materials/01-Onboarding Page/Onboarding 1.png'),
+    },
+    {
+        id: 2,
+        title: 'Book Your Stay',
+        subtitle: 'Easy booking process with instant confirmation',
+        image: require('../Materials/01-Onboarding Page/Onboarding 2.png'),
+    },
+    {
+        id: 3,
+        title: 'Enjoy Your Journey',
+        subtitle: 'Create memorable experiences at handpicked hotels',
+        image: require('../Materials/01-Onboarding Page/Onboarding 3.png'),
+    },
+];
 
-    const screens = [
-        {
-            title: 'Discover Amazing Hotels',
-            description: 'Find the perfect place to stay for your next adventure',
-            image: require('../assets/onboarding1.png'),
-        },
-        {
-            title: 'Easy Booking Process',
-            description: 'Book your favorite hotels with just a few taps',
-            image: require('../assets/onboarding2.png'),
-        },
-        {
-            title: 'Great Deals & Reviews',
-            description: 'Get the best prices and read genuine reviews',
-            image: require('../assets/onboarding3.png'),
-        },
-    ];
+const OnboardingScreen = () => {
+    const [currentPage, setCurrentPage] = useState(0);
+    const { completeOnboarding } = useAuth();
 
     const handleNext = () => {
-        if (currentScreen < screens.length - 1) {
-            setCurrentScreen(currentScreen + 1);
+        if (currentPage < onboardingData.length - 1) {
+            setCurrentPage(currentPage + 1);
         } else {
-            onComplete();
+            completeOnboarding();
         }
+    };
+
+    const handleSkip = () => {
+        completeOnboarding();
     };
 
     return (
         <View style={styles.container}>
-            <View style={styles.content}>
-                <Image source={screens[currentScreen].image} style={styles.image} />
-                <Text style={styles.title}>{screens[currentScreen].title}</Text>
-                <Text style={styles.description}>
-                    {screens[currentScreen].description}
-                </Text>
-            </View>
-
-            <View style={styles.pagination}>
-                {screens.map((_, index) => (
-                    <View
-                        key={index}
-                        style={[
-                            styles.dot,
-                            currentScreen === index && styles.activeDot,
-                        ]}
-                    />
+            <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(event) => {
+                    const page = Math.round(event.nativeEvent.contentOffset.x / width);
+                    setCurrentPage(page);
+                }}
+            >
+                {onboardingData.map((item, index) => (
+                    <View key={item.id} style={styles.page}>
+                        <Image source={item.image} style={styles.image} resizeMode="contain" />
+                        <View style={styles.textContainer}>
+                            <Text style={styles.title}>{item.title}</Text>
+                            <Text style={styles.subtitle}>{item.subtitle}</Text>
+                        </View>
+                    </View>
                 ))}
-            </View>
+            </ScrollView>
 
-            <TouchableOpacity style={styles.button} onPress={handleNext}>
-                <Text style={styles.buttonText}>
-                    {currentScreen === screens.length - 1 ? 'Get Started' : 'Next'}
-                </Text>
-            </TouchableOpacity>
+            <View style={styles.bottomContainer}>
+                <View style={styles.pagination}>
+                    {onboardingData.map((_, index) => (
+                        <View
+                            key={index}
+                            style={[
+                                styles.paginationDot,
+                                index === currentPage ? styles.activeDot : styles.inactiveDot,
+                            ]}
+                        />
+                    ))}
+                </View>
+
+                <View style={styles.buttonContainer}>
+                    <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
+                        <Text style={styles.skipText}>Skip</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={handleNext} style={styles.nextButton}>
+                        <Text style={styles.nextText}>
+                            {currentPage === onboardingData.length - 1 ? 'Get Started' : 'Next'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
         </View>
     );
 };
@@ -73,61 +95,84 @@ const OnboardingScreen = ({ onComplete }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
+        backgroundColor: '#FFFFFF',
     },
-    content: {
+    page: {
+        width,
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
+        paddingHorizontal: 20,
     },
     image: {
         width: width * 0.8,
-        height: width * 0.8,
-        resizeMode: 'contain',
-        marginBottom: 40,
+        height: height * 0.4,
+        marginBottom: 50,
+    },
+    textContainer: {
+        alignItems: 'center',
+        paddingHorizontal: 20,
     },
     title: {
         fontSize: 28,
         fontWeight: 'bold',
-        textAlign: 'center',
-        marginBottom: 20,
         color: '#333',
-    },
-    description: {
-        fontSize: 16,
         textAlign: 'center',
+        marginBottom: 15,
+    },
+    subtitle: {
+        fontSize: 16,
         color: '#666',
+        textAlign: 'center',
+        lineHeight: 24,
+    },
+    bottomContainer: {
         paddingHorizontal: 20,
+        paddingBottom: 50,
     },
     pagination: {
         flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
         marginBottom: 40,
     },
-    dot: {
+    paginationDot: {
         width: 10,
         height: 10,
         borderRadius: 5,
-        backgroundColor: '#ddd',
         marginHorizontal: 5,
     },
     activeDot: {
         backgroundColor: '#007AFF',
     },
-    button: {
-        backgroundColor: '#007AFF',
-        paddingHorizontal: 40,
-        paddingVertical: 15,
-        borderRadius: 25,
-        width: width * 0.8,
+    inactiveDot: {
+        backgroundColor: '#E5E5E5',
+    },
+    buttonContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
     },
-    buttonText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
+    skipButton: {
+        paddingVertical: 15,
+        paddingHorizontal: 30,
+    },
+    skipText: {
+        fontSize: 16,
+        color: '#999',
+    },
+    nextButton: {
+        backgroundColor: '#007AFF',
+        paddingVertical: 15,
+        paddingHorizontal: 30,
+        borderRadius: 25,
+        minWidth: 120,
+        alignItems: 'center',
+    },
+    nextText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '600',
     },
 });
 
