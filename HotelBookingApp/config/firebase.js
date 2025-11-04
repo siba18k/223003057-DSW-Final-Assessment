@@ -12,6 +12,7 @@ const firebaseConfig = {
     messagingSenderId: "413534942519",
     appId: "1:413534942519:web:90096d118754fc71a896b2"
 };
+
 let app;
 let auth;
 
@@ -26,5 +27,5 @@ if (getApps().length === 0) {
 }
 
 export { auth };
-export  const db = getFirestore(app);
+export const db = getFirestore(app);
 export default app;
